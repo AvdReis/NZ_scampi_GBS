@@ -1,0 +1,77 @@
+#Read in VCFtools output file for depth per site
+HD_Depth_site <- read.xlsx("VCFtools_R_data.xlsx", sheetName = "HD_Depth_site")
+
+#get the mean for each loci with HD 
+HD_Depth_site_mean <- HD_Depth_site
+HD_Depth_site_mean$MEAN_DEPTH <- as.numeric(as.character(HD_Depth_site_mean$MEAN_DEPTH))
+HD_Depth_site_mean$CHROM <- as.character(HD_Depth_site_mean$CHROM)
+HD_Depth_site_mean <- aggregate(MEAN_DEPTH~CHROM, HD_Depth_site_mean, mean)
+
+#calculate the standard deviation
+sd(as.numeric(HD_Depth_site_mean$MEAN_DEPTH))
+
+#calculate the mean
+mean(as.numeric(HD_Depth_site_mean$MEAN_DEPTH))
+
+#identify loci which are 2SDs above the mean
+HD_loci <- filter(HD_Depth_site_mean, MEAN_DEPTH > (mean(as.numeric(HD_Depth_site_mean$MEAN_DEPTH))+(2*sd(as.numeric(HD_Depth_site_mean$MEAN_DEPTH)))))
+
+#for a plot
+ggplot(HD_Depth_site_mean, aes(as.character(CHROM), as.numeric(MEAN_DEPTH))) +
+  geom_point() +
+  geom_hline(yintercept = mean(as.numeric(HD_Depth_site_mean$MEAN_DEPTH)), color = "red") +
+  geom_hline(yintercept = (mean(as.numeric(HD_Depth_site_mean$MEAN_DEPTH))+(2*sd(as.numeric(HD_Depth_site_mean$MEAN_DEPTH)))), color = "blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+#calculate how many SNPs there are per loci
+#if greater than 5 then remove loci
+SNP_rm <- HD_Depth_site
+SNP_rm$count <- rep(1)
+SNP_rm$CHROM <- as.character(SNP_rm$CHROM)
+SNP_rm <- aggregate(count~CHROM, SNP_rm, sum)
+
+SNP_rm_these <- filter(SNP_rm, count > 5) #51
+SNP_rm_these$LOCUS <- SNP_rm_these$CHROM
+
+#remove loci 2SDs > mean and loci w/ >5 SNPs from data
+HD_vcf <- tidy_genomic_data("populations.haps.vcf", strata = "strata.tsv", parallel.core = 1, filter.common.markers = FALSE, filter.monomorphic = FALSE)
+
+HD_vcf_loci_rm <- HD_vcf
+HD_vcf_loci_rm <- anti_join(HD_vcf_loci_rm, FSD_loci, by = "LOCUS") #to make it comparable all 20 loci identified 2sds above the mean were removed versus HD_loci which were 19 inclusive in the 20
+HD_vcf_loci_rm <- anti_join(HD_vcf_loci_rm, SNP_rm_these, by = "LOCUS")
+
+#Check replicates for missing data amount
+write_structure(data = HD_vcf_loci_rm, filename = "replicates/HD_vcf_loci_rm")
+
+reps_SSD_str <- read.delim("replicates/HD_vcf_loci_rm.str", header=FALSE)
+reps_SSD_str <- reps_SSD_str[,c(1,3:985)]
+reps_SSD_str <- reps_SSD_str[2:175,]
+reps_SSD_str <- t(reps_SSD_str)
+colnames(reps_SSD_str) <- as.character(unlist(reps_SSD_str[1,]))
+reps_SSD_str <- as.data.frame(reps_SSD_str[2:984,])
+
+test <- reps_SSD_str[,107:110]
+test$no <- rep(1:983)
+test <- left_join(test, loci_no)
+
+#for some reason there was random spaces
+test <- apply(test, 2, function(x)gsub('\\s+', '',x))
+
+test <- as.data.frame(test)
+
+test$Missing <- if_else(test$WHOLEblue == -9 & test$WHOLEblue.1 == -9 & test$WHOLEred == -9 & test$WHOLEred.1 == -9, "Missing", "Results")
+filter(test, Missing == "Missing")
+#remove missing data - 2 loci
+test <- filter(test, Missing == "Results")
+
+test$SNPs <- if_else(test$WHOLEblue == test$WHOLEred & test$WHOLEblue.1 ==  test$WHOLEred.1 , "Same", "untested") #958 loci removed
+test <- filter(test, SNPs == "untested")
+
+test$SNPs <- if_else(test$WHOLEblue == -9 & test$WHOLEblue.1 == -9, "missing", "untested") 
+test <- filter(test, SNPs == "untested")
+
+test$SNPs <- if_else(test$WHOLEred == -9 & test$WHOLEred.1 == -9, "missing", "untested") 
+test <- filter(test, SNPs == "untested")
+
+#REMOVE WHOLEred
+HD_vcf_loci_rm <- filter(HD_vcf_loci_rm, INDIVIDUALS != "WHOLEred")
