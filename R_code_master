@@ -1,0 +1,1756 @@
+#Using Haplotype data and SNP data (first SNP per loci)
+#20191118
+#updated 2011202
+
+####PACKAGES####
+library(readxl)
+library(xlsx)
+library(dplyr)
+library(radiator)
+library(ggplot2)
+library(RColorBrewer)
+library(mapplots)
+library(fields)
+library(LEA) #BiocManager::install(c("LEA"))
+library(adegenet)
+library(reshape2)
+library(hierfstat)
+library(ape)
+library(pcadapt)
+library(OutFLANK) #devtools::install_github("StoreyLab/qvalue") AND THEN devtools::install_github("whitlock/OutFLANK")
+library(genepop)
+library(strataG)
+library(tidyr)
+library(stackr) #devtools::install_github("thierrygosselin/stackr")
+library(igraph)
+library(StAMPP)
+library(poppr)
+library(DECIPHER)
+
+####Set working directory####
+setwd("C:/Users/x/y/z/")
+
+
+###Scampi_coords####
+Individual <- as.character(c("247", "257", "02", "01", "03", "04", "269", "299", "WC1", "WC2", "WHOLE", "HALF"))
+Long <- c(176.73, 176.73, 177.61, 177.61, 176.41, 176.41, 166.87, 166.87, 169.46, 169.46, 169.46, 169.46)
+Lat <- c(-43.04, -43.04, -39.78, -39.78, -37.08, -37.08, -50.75, -50.75, -38.66, -38.66, -38.66, -38.66)
+scampi_coords <- employ.data <- data.frame(Individual, Long, Lat)
+
+#rather using central coords as it is only used for structure plot
+
+#LNI: -39.777914, 177.6133158
+#UNI: -37.07899825, 176.4054573
+#CR: -43.03679165, 176.731248
+#AI: -50.75165, 166.87249
+#WC: -38.65603611, 169.4610083
+####SD, SNPs and reps for HD, FSD, MSF####
+
+HD_Depth_site <- read.xlsx("Single_SNP_data/VCFtools_R_data.xlsx", sheetName = "HD_Depth_site")
+FSD_Depth_site <- read.xlsx("Single_SNP_data/VCFtools_R_data.xlsx", sheetName = "FSD_Depth_site")
+MSD_Depth_site <- read.xlsx("Single_SNP_data/VCFtools_R_data.xlsx", sheetName = "MSD_Depth_site")
+
+#HD_Depth_site$HD <- rep("YES")
+#FSD_Depth_site$FSD <- rep("YES")
+#MSD_Depth_site$MSD <- rep("YES")
+
+#Depth_joined <- left_join(HD_Depth_site, FSD_Depth_site)
+#Depth_joined <- left_join(Depth_joined, MSD_Depth_site)
+
+#write.xlsx(Depth_joined, "./Depth_joined_correct.xlsx")
+
+#get the mean for each loci with HD 
+HD_Depth_site_mean <- HD_Depth_site
+HD_Depth_site_mean$MEAN_DEPTH <- as.numeric(as.character(HD_Depth_site_mean$MEAN_DEPTH))
+HD_Depth_site_mean$CHROM <- as.character(HD_Depth_site_mean$CHROM)
+HD_Depth_site_mean <- aggregate(MEAN_DEPTH~CHROM, HD_Depth_site_mean, mean)
+
+#SDs
+sd(as.numeric(HD_Depth_site_mean$MEAN_DEPTH)) #239.9331
+sd(as.numeric(FSD_Depth_site$MEAN_DEPTH)) #239.9103
+sd(as.numeric(MSD_Depth_site$MEAN_DEPTH)) #239.8643
+
+#means
+mean(as.numeric(HD_Depth_site_mean$MEAN_DEPTH)) #378.8626
+mean(as.numeric(FSD_Depth_site$MEAN_DEPTH)) #378.928
+mean(as.numeric(MSD_Depth_site$MEAN_DEPTH)) #378.9503
+
+#identify loci which are 2SDs above the mean:
+
+#HD
+HD_loci <- filter(HD_Depth_site_mean, MEAN_DEPTH > (mean(as.numeric(HD_Depth_site_mean$MEAN_DEPTH))+(2*sd(as.numeric(HD_Depth_site_mean$MEAN_DEPTH))))) #19
+
+ggplot(HD_Depth_site_mean, aes(as.character(CHROM), as.numeric(MEAN_DEPTH))) +
+  geom_point() +
+  geom_hline(yintercept = mean(as.numeric(HD_Depth_site_mean$MEAN_DEPTH)), color = "red") +
+  geom_hline(yintercept = (mean(as.numeric(HD_Depth_site_mean$MEAN_DEPTH))+(2*sd(as.numeric(HD_Depth_site_mean$MEAN_DEPTH)))), color = "blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+#FSD
+FSD_loci <- filter(FSD_Depth_site, as.numeric(MEAN_DEPTH) > (mean(as.numeric(FSD_Depth_site$MEAN_DEPTH))+(2*sd(as.numeric(FSD_Depth_site$MEAN_DEPTH))))) #20
+
+ggplot(FSD_Depth_site, aes(as.character(CHROM), as.numeric(MEAN_DEPTH))) +
+  geom_point() +
+  geom_hline(yintercept = mean(as.numeric(FSD_Depth_site$MEAN_DEPTH)), color = "red") +
+  geom_hline(yintercept = (mean(as.numeric(FSD_Depth_site$MEAN_DEPTH))+(2*sd(as.numeric(FSD_Depth_site$MEAN_DEPTH)))), color = "blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+#MSD
+MSD_loci <- filter(MSD_Depth_site, as.numeric(MEAN_DEPTH) > (mean(as.numeric(MSD_Depth_site$MEAN_DEPTH))+(2*sd(as.numeric(MSD_Depth_site$MEAN_DEPTH))))) #20
+
+ggplot(MSD_Depth_site, aes(as.character(CHROM), as.numeric(MEAN_DEPTH))) +
+  geom_point() +
+  geom_hline(yintercept = mean(as.numeric(MSD_Depth_site$MEAN_DEPTH)), color = "red") +
+  geom_hline(yintercept = (mean(as.numeric(MSD_Depth_site$MEAN_DEPTH))+(2*sd(as.numeric(MSD_Depth_site$MEAN_DEPTH)))), color = "blue") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+#No loci were 2SDs above the mean for MSD
+
+#see which loci are different between HD and FSD
+HD_loci$LOCUS <- as.character(HD_loci$CHROM)
+FSD_loci$LOCUS <- as.character(FSD_loci$CHROM)
+MSD_loci$LOCUS <- as.character(MSD_loci$CHROM)
+
+loci_rm_SD <- full_join(HD_loci, FSD_loci, by = "LOCUS")
+loci_rm_SD <- full_join(loci_rm_SD, MSD_loci, by = "LOCUS")
+loci_rm_SD$CHROM <- as.character(loci_rm_SD$CHROM)
+
+#CHROM 8207 is excluded in HD_loci, otherwise all match
+
+#calculate how many SNPs there are per loci
+#if greater than 5 then remove loci
+SNP_rm <- HD_Depth_site
+SNP_rm$count <- rep(1)
+SNP_rm$CHROM <- as.character(SNP_rm$CHROM)
+SNP_rm <- aggregate(count~CHROM, SNP_rm, sum)
+
+SNP_rm_these <- filter(SNP_rm, count > 5) #51
+SNP_rm_these$LOCUS <- SNP_rm_these$CHROM
+
+semi_join(loci_rm_SD, SNP_rm_these) #no SNPs in common between those catagories to be removed
+
+#remove loci from data
+#HD - loci 2SDs and SNPs removed
+HD_vcf <- tidy_genomic_data("populations.haps.vcf", strata = "strata.tsv", parallel.core = 1, filter.common.markers = FALSE, filter.monomorphic = FALSE)
+
+HD_vcf_loci_rm <- HD_vcf
+HD_vcf_loci_rm <- anti_join(HD_vcf_loci_rm, FSD_loci, by = "LOCUS") #to make it comparable all 20 loci identified 2sds above the mean were removed versus HD_loci which were 19 inclusive in the 20
+HD_vcf_loci_rm <- anti_join(HD_vcf_loci_rm, SNP_rm_these, by = "LOCUS")
+
+#FSD - loci 2SDs and SNPs removed
+FSD_vcf <- tidy_genomic_data("Single_SNP_data/populations.snps.vcf", strata = "strata.tsv", parallel.core = 1, filter.common.markers = FALSE, filter.monomorphic = FALSE)
+
+FSD_vcf_loci_rm <- FSD_vcf
+FSD_vcf_loci_rm <- anti_join(FSD_vcf_loci_rm, FSD_loci, by = "LOCUS")
+FSD_vcf_loci_rm <- anti_join(FSD_vcf_loci_rm, SNP_rm_these, by = "LOCUS")
+
+#MSD - loci SNPs removed
+MSD_vcf <- tidy_genomic_data("MAF_vcf.vcf", strata = "strata.tsv", parallel.core = 1, filter.common.markers = FALSE, filter.monomorphic = FALSE)
+
+MSD_vcf_loci_rm <- MSD_vcf
+MSD_vcf_loci_rm <- anti_join(MSD_vcf_loci_rm, MSD_loci, by = "LOCUS") #no loci were identified that were 2SDs above the mean
+MSD_vcf_loci_rm <- anti_join(MSD_vcf_loci_rm, SNP_rm_these, by = "LOCUS")
+
+#Check replicates for all of them
+#HD
+#write_structure(data = HD_vcf_loci_rm, filename = "replicates/HD_vcf_loci_rm")
+#write_structure(data = FSD_vcf_loci_rm, filename = "replicates/FSD_vcf_loci_rm")
+#write_structure(data = MSD_vcf_loci_rm, filename = "replicates/MSD_vcf_loci_rm")
+
+reps_SSD_str <- read.delim("replicates/MSD_vcf_loci_rm.str", header=FALSE) #CHANGE
+reps_SSD_str <- reps_SSD_str[,c(1,3:985)]
+reps_SSD_str <- reps_SSD_str[2:175,]
+reps_SSD_str <- t(reps_SSD_str)
+colnames(reps_SSD_str) <- as.character(unlist(reps_SSD_str[1,]))
+reps_SSD_str <- as.data.frame(reps_SSD_str[2:984,])
+
+test <- reps_SSD_str[,107:110]
+test$no <- rep(1:983)
+test <- left_join(test, loci_no)
+
+#for some reason there was random spaces
+test <- apply(test, 2, function(x)gsub('\\s+', '',x))
+
+test <- as.data.frame(test)
+
+test$Missing <- if_else(test$WHOLEblue == -9 & test$WHOLEblue.1 == -9 & test$WHOLEred == -9 & test$WHOLEred.1 == -9, "Missing", "Results")
+filter(test, Missing == "Missing")
+#remove missing data - 2 loci
+test <- filter(test, Missing == "Results")
+
+test$SNPs <- if_else(test$WHOLEblue == test$WHOLEred & test$WHOLEblue.1 ==  test$WHOLEred.1 , "Same", "untested") #958 loci removed
+test <- filter(test, SNPs == "untested")
+
+#Missing data from one individual
+#23 loci difference
+
+test$SNPs <- if_else(test$WHOLEblue == -9 & test$WHOLEblue.1 == -9, "missing", "untested") #8 loci removed
+test <- filter(test, SNPs == "untested")
+
+test$SNPs <- if_else(test$WHOLEred == -9 & test$WHOLEred.1 == -9, "missing", "untested") #14 loci removed
+test <- filter(test, SNPs == "untested")
+
+#1 loci remains where the call was different
+
+#REMOVE WHOLEred
+#HD_vcf_loci_rm <- filter(HD_vcf_loci_rm, INDIVIDUALS != "WHOLEred")
+#FSD_vcf_loci_rm <- filter(FSD_vcf_loci_rm, INDIVIDUALS != "WHOLEred")
+#MSD_vcf_loci_rm <- filter(MSD_vcf_loci_rm, INDIVIDUALS != "WHOLEred")
+
+#SNPs left in total for HD as FSD and MSD will both have 983 SNPs/loci
+SNP_count <- SNP_rm
+SNP_count$LOCUS <- SNP_count$CHROM
+SNPs_HD_total <- semi_join(SNP_count, HD_vcf_loci_rm, by = "LOCUS")
+sum(SNPs_HD_total$count) #2115 SNPs in HD 
+
+####Blast results####
+#can use any dataset as all have the same number of loci in
+#Remove filtered loci from blast results
+megablast <- read_excel("loci/blastn_megablast.xlsx", 
+                        sheet = "Megablast")
+
+megablast$LOCUS <- gsub("LOCUS_", "", megablast$qseqid)
+megablast <- semi_join(megablast, HD_vcf_loci_rm)
+
+#write.xlsx(megablast, "loci/table_megablast.xlsx")
+
+blastn <- read_excel("loci/blastn_megablast.xlsx", 
+                     sheet = "Blastn")
+blastn$LOCUS <- gsub("LOCUS_", "", blastn$qseqid)
+blastn <- semi_join(blastn, HD_vcf_loci_rm)
+
+#write.xlsx(blastn, "loci/table_blastn.xlsx")
+
+####Summary stats####
+
+#radiator to convert to appropriate format to be used for stats
+
+#make a list with the results in for all the datasets
+summary_stats <- c()
+
+#nucleotide diversity - data from Stacks and WHOLEred was removed prior to running populations again
+populations.sumstats <- read.delim("~/AKL_UNI/GBS/haplotypes/stacks_haplotypes_tsv/nucleo_hap_diversity/populations.sumstats.tsv", comment.char="#")
+
+populations.sumstats <- rename(populations.sumstats, LOCUS = Locus.ID, POS = Col)
+populations.sumstats$LOCUS <- as.character(populations.sumstats$LOCUS)
+populations.sumstats$POS <- populations.sumstats$POS +1 
+populations.sumstats$POS <- as.character(populations.sumstats$POS)
+
+#options: HD_vcf_loci_rm  FSD_vcf_loci_rm MSD_vcf_loci_rm
+
+#including SCI_E and SCI_SW
+cluster_seven <- HD_vcf_loci_rm
+SCI_E <- filter(HD_vcf_loci_rm, POP_ID != "West_Coast" & POP_ID != "Auckland_Islands")
+SCI_E$POP_ID <- rep("SCI_E")
+#SCI_SW <- filter(MSD_vcf_loci_rm, POP_ID != "East_LNI" & POP_ID != "East_UNI"& POP_ID != "Chatham_Rise")
+#SCI_SW$POP_ID <- rep("SCI_SW")
+
+cluster_seven <- rbind(cluster_seven, SCI_E)
+
+diversity <- semi_join(populations.sumstats, cluster_seven, by = "LOCUS") # put in by LOCUS for HD ONLY!!!
+
+#east as one group
+East <- filter(diversity, Pop.ID = "West_Coast" & Pop.ID != "Auckland_Islands")
+East$Pop.ID <- rep("East")
+
+mean_Pi_pop <- aggregate(Pi~Pop.ID, diversity, mean)
+
+test <- filter(diversity, Pop.ID != "West_Coast" & Pop.ID != "Auckland_Islands")
+sd(test$Pi)
+
+#summary_stats$Pi$HD <- mean_Pi_pop
+#summary_stats$Pi$FSD <- mean_Pi_pop
+#summary_stats$Pi$MSD <- mean_Pi_pop
+
+#haplotype diversity
+#aggregate(Pi~Locus.ID+Pop.ID, populations.sumstats, sum)
+
+#StAMPP
+#WC Fst 100 000 bootstraps using CI 95%
+HD_stAMPP <- write_genlight(cluster_seven)
+HD_stAMPP_Fst <- stamppFst(HD_stAMPP, nboots = 100000, percent = 95, nclusters = 1)
+#summary_stats$HD_Fst <- HD_stAMPP_Fst$Fsts
+#summary_stats$HD_Fst_pval <- HD_stAMPP_Fst$Pvalues
+
+FSD_stAMPP <- write_genlight(cluster_seven)
+FSD_stAMPP_Fst <- stamppFst(FSD_stAMPP, nboots = 100000, percent = 95, nclusters = 1)
+#summary_stats$FSD_Fst <- FSD_stAMPP_Fst$Fsts
+#summary_stats$FSD_Fst_pval <- FSD_stAMPP_Fst$Pvalues
+
+MSD_stAMPP <- write_genlight(cluster_seven)
+MSD_stAMPP_Fst <- stamppFst(MSD_stAMPP, nboots = 100000, percent = 95, nclusters = 1)
+#summary_stats$MSD_Fst <- MSD_stAMPP_Fst$Fsts
+#summary_stats$MSD_Fst_pval <- MSD_stAMPP_Fst$Pvalues
+
+pvalues <- c(.056, .254, .257, .001, .001, .000, .001, .001, .000, .000,1.000,1.000,1.000,0.000,0.000)
+
+p.adjust(pvalues,method="fdr")
+
+#hierfstats
+#Ho, Hs, Fis
+
+#change per dataset
+#options: HD_vcf_loci_rm  FSD_vcf_loci_rm MSD_vcf_loci_rm
+hierf <- write_hierfstat(HD_vcf_loci_rm)
+
+boot.ppfst(hierf, nboot = 100000, quant = c(0.025, 0.975))
+boot.vc()
+
+#keep as is
+hierf_stats <- basic.stats(hierf)
+
+hierf_Ho <- as.data.frame(hierf_stats[["Ho"]])
+hierf_Hs <- as.data.frame(hierf_stats[["Hs"]])
+hierf_Fis <- as.data.frame(hierf_stats[["Fis"]])
+
+hierf_Ho_mean <- hierf_Ho %>% gather("Area", "Ho", 1:5) %>% group_by(Area) %>% summarise(sd = sd(Ho)) %>% spread(1, 2, 2)
+
+hierf_Hs_mean <- hierf_Hs %>% gather("Area", "Hs", 1:5) %>% group_by(Area) %>% summarise(mean = mean(Hs)) %>% spread(1, 2, 2)
+
+hierf_Fis_mean <- hierf_Fis %>% gather("Area", "Fis", 1:5) %>% filter(Fis != "NaN") %>% group_by(Area) %>% summarise(mean = mean(Fis)) %>% spread(1, 2, 2)
+
+Summary_table <- rbind(hierf_Ho_mean, hierf_Hs_mean, hierf_Fis_mean)
+
+all_pops_stats <- hierf_stats[["overall"]]
+all_pops_stats <- as.data.frame(all_pops_stats)
+all_pops_stats <- all_pops_stats[c(1:2,9),]
+
+Summary_table <- cbind(Summary_table, all_pops_stats)
+colnames(Summary_table) = c("LNI", "UNI", "WC", "CR", "AI", "All")
+rownames(Summary_table) = c("Ho", "Hs", "Fis")
+
+#test SCI_E
+test <- hierf_Fis[,c(1,2,4)]
+test %>% gather("Area", "Ho", 1:3) %>% filter(Ho != "NaN") %>% summarise(mean = mean(Ho))
+test %>% gather("Area", "Ho", 1:3) %>% filter(Ho != "NaN") %>% summarise(sd = sd(Ho))
+
+#write to summary list
+#summary_stats$HD_HoHsFis <- Summary_table
+#summary_stats$FSD_HoHsFis <- Summary_table
+#summary_stats$MSD_HoHsFis <- Summary_table
+
+#allelic richness
+#options: HD_vcf_loci_rm  FSD_vcf_loci_rm MSD_vcf_loci_rm
+hierf <- write_hierfstat(HD_vcf_loci_rm)
+hierf <- filter(hierf, POP_ID != 3 & POP_ID != 5)
+Ar <- allelic.richness(hierf,min.n=NULL,diploid=TRUE)
+Ar <- as.data.frame(Ar$Ar)
+Ar <- gather(Ar, "Area", "Ar", 1:3)
+sd(Ar$Ar)
+Ar <- aggregate(Ar~Area, Ar, sd)
+
+#Ar_all_SCI <- c()
+#Ar_all_SCI$Areas <- Ar$Area
+#Ar_all_SCI$Ar_HD <- Ar$Ar 
+#Ar_all_SCI$Ar_FSD <- Ar$Ar 
+#Ar_all_SCI$Ar_MSD <- Ar$Ar
+
+#summary_stats$Ar <- Ar_all_SCI
+
+#Genetics distance
+#poppr
+#https://grunwaldlab.github.io/Population_Genetics_in_R/AMOVA.html
+
+#options: HD_vcf_loci_rm  FSD_vcf_loci_rm MSD_vcf_loci_rm
+poppr <- FSD_vcf_loci_rm
+poppr <- filter(poppr, POP_ID != "Auckland_Islands")
+#POP_ID != "West_Coast" & POP_ID != "Auckland_Islands"
+#POP_ID != "East_LNI" & POP_ID != "East_UNI"& POP_ID != "Chatham_Rise"
+
+poppr <- write_genind(poppr)
+
+population_hierarchy <- c()
+population_hierarchy$Pop <- as.character(c(rep("East", 18), rep("East", 18), rep("West", 18), rep("East", 15), rep("South", 17)))
+population_hierarchy$Subpop <- as.character(c(rep("SCI_2", 18), rep("SCI_1", 18), rep("SCI_7", 18), rep("SCI_3", 15), rep("SCI_6", 17)))
+population_hierarchy <- as.data.frame(population_hierarchy)
+
+poppr$other$population_hierarchy <- population_hierarchy
+strata(poppr) <- data.frame(other(poppr)$population_hierarchy)
+
+poppr.gen <- as.genclone(poppr)
+poppr.amova <- poppr.amova(poppr.gen, hier = ~Pop, missing = "ignore", cutoff = "ignore", method = "ade4", clonecorrect = FALSE, within = FALSE, dist = NULL, squared = FALSE, freq = TRUE, correction = "quasieuclid", sep = "_", filter = FALSE, threshold = 0, algorithm = "farthest_neighbor", threads = 1L, quiet = FALSE)
+set.seed(1000)
+poppr_signif   <- randtest(poppr.amova, nrepet = 100000)
+#, p.adjust.method = "bonferroni" only if using hierarchical
+
+#summary_stats$HD_Amova$amova <- poppr.amova
+#summary_stats$HD_Amova$pval <- poppr_signif
+#summary_stats$FSD_Amova$amova <- poppr.amova
+#summary_stats$FSD_Amova$pval <- poppr_signif
+#summary_stats$MSD_Amova$amova <- poppr.amova
+#summary_stats$MSD_Amova$pval <- poppr_signif
+
+plot(summary_stats$MSD_Amova$pval)
+
+#calculate genetic distance
+
+cal_dist <- write_genind(HD_vcf_loci_rm)
+cal_dist <- genind2genpop(cal_dist)
+
+dist.genpop(cal_dist, method = 4, diag = FALSE, upper = FALSE)
+
+#using StrataG
+#Nei, M. and R.K. Chesser. 1983. Estimation of fixation indices and gene diversities. Ann. Hum. Genet. 47:253-259.
+#popStructStat
+#doing 1000 or 100000 the FST results were the same
+Strata <- HD_vcf_loci_rm
+StrataE <- HD_vcf_loci_rm
+StrataE$POP_ID <- as.character(StrataE$POP_ID)
+StrataE$POP_ID <- if_else(StrataE$POP_ID == "East_LNI", "East", if_else(StrataE$POP_ID == "East_UNI", "East", if_else(StrataE$POP_ID == "Chatham_Rise", "East", StrataE$POP_ID)))
+Strata <- rbind(Strata, StrataE)
+Strata <- unique(Strata)
+Strata$MARKERS <- rep(1:134671)
+Strata <- write_gtypes(StrataE)
+StrataFst <- popStructTest(Strata, nrep = 1000, stats = "fst", type = "both", keep.null = FALSE, quietly = FALSE, max.cores = NULL)
+
+####DivMigrate####
+#DM <- write_genepop(HD_vcf_loci_rm, filename = "./AKL_UNI/GBS/DM_test.gp")
+#doing a 1000 or 10000 gave the exact same results!
+DM_test <- divMigrate("./AKL_UNI/GBS/DM_test.gp_genepop.gen", boots = 1000, stat = "d", plot_network = T)
+
+####HapNet####
+hapmap <- write_hapmap(HD_vcf_loci_rm)
+
+hap <- hapmap[,12:97]
+hap[is.na(hap)] <- 0
+collapse_hap <- hap %>% summarize_all(paste, collapse="")
+
+write.xlsx(collapse_hap, "./hapmap_seq.xlsx")
+
+library(DECIPHER)
+# specify the path to your sequence file:
+fas <- "./hapmap_seq.fasta"
+# OR find the example sequence file used in this tutorial:
+dna <- readDNAStringSet(fas)
+
+# form a chained guide tree
+gT <- lapply(order(width(dna), decreasing=TRUE),
+               function(x) {
+                 attr(x, "height") <- 0
+                 attr(x, "label") <- names(dna)[x]
+                 attr(x, "members") <- 1L
+                 attr(x, "leaf") <- TRUE
+                 x
+               })
+attr(gT, "height") <- 0.5
+attr(gT, "members") <- length(dna)
+class(gT) <- "dendrogram"
+
+MSA <- AlignSeqs(dna, iterations = 100, guideTree = gT)
+BrowseSeqs(MSA)
+
+writeXStringSet(MSA, "./hapmap_decipher.fasta")
+
+input <- "./hapmap_decipher.fasta"
+d <- ape::read.dna(input, format='fasta')
+e <- dist.dna(d)
+h <- pegas::haplotype(d)
+h <- sort(h, what = "label")
+(net <- pegas::haploNet(h))
+ind.hap<-with(
+  stack(setNames(attr(h, "index"), rownames(h))),
+  table(hap=ind, pop=rownames(d)[values])
+)
+plot(net, size=attr(net, "freq"), scale.ratio=2, cex = 0.8, pie=ind.hap)
+
+plot(NasoNet, size=attr(NasoNet, "freq"), scale.ratio = 2, cex = 0.8, pie=ind.hap)
+legend(-8, 0, colnames(ind.hap), col=rainbow(ncol(ind.hap)), pch=19, ncol=2)
+
+
+
+
+col <- gsub(",", "", collapse_hap[1,])
+
+collapse_hap$ID <- rownames(collapse_hap)
+
+col <- as.data.frame(col)
+col <- t(col)
+
+
+
+pegas <- write_genind(HD_vcf_loci_rm)
+test <- bitwise.dist(pegas, mat = T, euclidean = T)
+test <- diss.dist(pegas)
+peg.dist <- dist.genpop("./HD_GP_genepop.gen")
+pegloc <- as.loci(pegas)
+test <- dist.gene(pegloc)
+hapnet <- haplotype(pegloc, locus = 1:2, check.phase = T)
+
+h <- pegas::haplotype(test)
+h <- sort(h, what = "label")
+(net <- pegas::haploNet(h))
+ind.hap<-with(
+  stack(setNames(attr(h, "index"), rownames(h))),
+  table(hap=ind, pop=rownames(pegloc)[values])
+)
+plot(net, size=attr(net, "freq"), scale.ratio=0.2, pie=ind.hap)
+legend(-8, 0, colnames(ind.hap), col=rainbow(ncol(ind.hap)), pch=19, ncol=2)
+
+#minimum spanning network
+#options: HD_vcf_loci_rm  FSD_vcf_loci_rm MSD_vcf_loci_rm
+poppr <- write_genind(HD_vcf_loci_rm)
+
+summary(poppr)
+
+#number of nucleotides
+nohm <- hapmap[,1:2]
+sephm <- separate(nohm, 2, c("no_nucleo", "rm"), sep = "/")
+sephm$noChar <- nchar(sephm$no_nucleo)
+sephm$noChar <- if_else(sephm$noChar > 5, nchar(sephm$rm), sephm$noChar)
+sepdf <- as.data.frame(sephm$noChar)
+col_sep <- sepdf %>% summarize_all(paste, collapse=", ")
+
+
+#sephm$equal <- rep("=")
+#sephm$reps <- unite(sephm, newcol, c(1,5,4), remove=T, sep = " ")
+
+#col_sep <- sephm$noChar
+#col_sep <- as.data.frame(col_sep)
+#col_sep <- col_sep %>% summarize_all(paste, collapse=", ")
+
+reps <- c(2, 1, 4, 2, 4, 3, 3, 2, 1, 2, 1, 1, 3, 2, 1, 2, 3, 5, 1, 2, 2, 1, 3, 2, 1, 4, 3, 1, 2, 1, 5, 3, 2, 1, 3, 1, 1, 4, 1, 2, 5, 1, 1, 1, 2, 1, 3, 1, 4, 3, 1, 4, 3, 2, 1, 1, 2, 1, 1, 1, 2, 4, 1, 2, 1, 2, 1, 5, 4, 1, 5, 1, 2, 2, 4, 4, 1, 2, 3, 2, 4, 1, 3, 3, 3, 1, 3, 1, 2, 1, 1, 2, 3, 1, 4, 3, 1, 1, 2, 1, 4, 4, 5, 2, 2, 1, 2, 2, 1, 1, 2, 1, 1, 5, 2, 1, 2, 2, 5, 1, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1, 2, 3, 5, 1, 2, 3, 1, 3, 4, 2, 3, 2, 3, 2, 1, 4, 1, 5, 1, 5, 2, 2, 1, 1, 1, 1, 3, 2, 1, 3, 4, 1, 1, 3, 2, 2, 2, 1, 2, 1, 1, 2, 3, 2, 3, 1, 1, 1, 4, 1, 3, 3, 4, 1, 3, 2, 1, 3, 1, 2, 3, 2, 1, 3, 1, 1, 1, 1, 1, 3, 2, 2, 5, 1, 1, 1, 2, 3, 1, 2, 5, 3, 5, 1, 2, 2, 3, 1, 3, 1, 4, 4, 1, 3, 3, 1, 1, 1, 5, 2, 4, 3, 2, 1, 1, 5, 2, 3, 1, 2, 1, 1, 1, 1, 2, 1, 3, 1, 3, 3, 3, 1, 2, 3, 2, 1, 1, 4, 1, 3, 1, 1, 4, 1, 2, 1, 5, 2, 2, 3, 2, 2, 3, 1, 1, 4, 2, 3, 2, 2, 1, 1, 3, 2, 2, 2, 3, 4, 2, 4, 5, 3, 5, 2, 1, 2, 3, 5, 2, 2, 5, 3, 3, 2, 1, 1, 1, 3, 3, 2, 1, 2, 3, 3, 1, 2, 1, 2, 1, 3, 2, 1, 5, 1, 3, 2, 3, 1, 4, 4, 2, 2, 2, 1, 5, 3, 3, 4, 3, 2, 2, 2, 4, 1, 3, 1, 3, 5, 4, 1, 3, 4, 4, 1, 2, 4, 2, 3, 1, 3, 3, 2, 1, 1, 3, 1, 2, 4, 1, 1, 2, 1, 3, 3, 3, 2, 1, 5, 2, 4, 3, 5, 3, 3, 4, 3, 2, 4, 3, 3, 4, 4, 2, 3, 3, 1, 4, 1, 4, 2, 1, 2, 1, 2, 1, 3, 2, 1, 3, 2, 2, 3, 2, 3, 4, 1, 3, 2, 2, 1, 2, 1, 2, 3, 4, 2, 1, 2, 3, 3, 3, 3, 3, 1, 3, 3, 4, 2, 1, 2, 1, 1, 2, 1, 3, 2, 4, 4, 2, 1, 1, 1, 3, 1, 2, 3, 1, 1, 1, 1, 5, 2, 2, 5, 3, 2, 1, 3, 3, 1, 2, 2, 4, 4, 1, 3, 4, 2, 2, 2, 2, 1, 1, 4, 3, 1, 1, 1, 4, 3, 2, 1, 2, 1, 2, 1, 2, 5, 1, 4, 5, 4, 1, 1, 4, 2, 2, 3, 2, 1, 1, 2, 3, 1, 2, 1, 3, 1, 2, 1, 4, 2, 2, 2, 2, 3, 1, 2, 1, 3, 5, 1, 4, 2, 1, 2, 2, 2, 2, 3, 3, 3, 4, 3, 3, 1, 2, 3, 2, 1, 3, 1, 2, 1, 1, 2, 2, 3, 2, 1, 2, 1, 1, 1, 1, 1, 2, 4, 3, 1, 2, 4, 1, 2, 4, 3, 2, 1, 3, 1, 2, 3, 2, 1, 4, 5, 1, 2, 3, 2, 2, 4, 1, 1, 1, 2, 1, 1, 3, 1, 2, 1, 1, 2, 2, 1, 4, 1, 2, 2, 1, 3, 4, 1, 1, 1, 3, 1, 2, 2, 3, 3, 2, 2, 3, 3, 4, 3, 2, 2, 1, 1, 4, 2, 4, 5, 2, 2, 2, 5, 4, 1, 2, 1, 3, 2, 3, 1, 2, 1, 4, 2, 1, 2, 1, 1, 4, 3, 2, 2, 3, 3, 1, 2, 2, 1, 3, 3, 2, 1, 2, 1, 3, 1, 1, 3, 1, 4, 5, 3, 4, 2, 4, 4, 1, 1, 1, 1, 1, 1, 1, 5, 3, 1, 1, 2, 1, 1, 1, 1, 5, 4, 1, 1, 1, 2, 3, 4, 3, 3, 2, 1, 3, 2, 1, 3, 2, 1, 2, 1, 1, 1, 4, 4, 1, 1, 3, 1, 4, 2, 4, 3, 1, 1, 2, 4, 2, 1, 2, 4, 4, 3, 2, 5, 2, 2, 1, 1, 4, 1, 3, 2, 5, 2, 3, 3, 1, 1, 2, 2, 2, 2, 4, 3, 1, 2, 1, 1, 4, 2, 3, 3, 2, 3, 1, 3, 2, 4, 2, 1, 1, 5, 2, 2, 1, 1, 3, 2, 3, 2, 2, 1, 1, 1, 2, 3, 1, 2, 4, 2, 4, 2, 1, 2, 5, 4, 2, 2, 1, 2, 2, 1, 3, 1, 1, 2, 3, 1, 1, 1, 3, 4, 2, 2, 1, 2, 2, 1, 3, 2, 1, 5, 2, 2, 3, 3, 1, 2, 1, 2, 1, 1, 1, 1, 4, 1, 5, 3, 2, 1, 1, 1, 4, 1, 2, 1, 1, 2, 2, 2, 2, 3, 2, 2, 2, 1, 1, 1, 1, 2, 4, 1, 1, 1, 1, 5, 2, 1, 1, 3, 4, 1, 5, 1, 2, 1, 2, 2, 2, 1, 1, 1, 3, 1, 2, 1, 1, 4, 2, 1, 1, 1, 2, 1, 1, 1, 3, 1, 1, 4, 1, 4, 1, 5, 3, 2, 2, 1, 2, 3, 4, 3, 1, 2, 1, 1, 2, 4, 1, 2, 1, 1, 2, 4, 1, 2, 2, 2, 1, 1, 1, 2, 2, 1, 1, 1, 2, 2, 1, 1, 1, 1, 3, 1, 1, 2, 3, 3, 2, 1, 1, 1, 2, 1, 1, 2, 2, 1, 2, 3, 2, 2, 1, 2, 2, 1, 1, 1, 2, 1, 1, 1, 1)
+
+hm_msn <- bruvo.msn(poppr, replen = reps, showplot = FALSE)
+
+color <- c("blue", "yellow", "green", "red", "white")
+
+# Visualize the network
+set.seed(120)
+plot_poppr_msn(poppr, hm_msn, inds = "none", palette = cm.colors, nodebase = 1.25, threshold = "average_neighbor")
+
+e
+poppr.dist <- bitwise.dist(poppr)
+poppr.msn <- poppr.msn(poppr, poppr.dist, showplot = FALSE, include.ties = T)
+
+node.size <- rep(2, times = nInd(poppr))
+names(node.size) <- indNames(poppr)
+vertex.attributes(poppr.msn$graph)$size <- node.size
+
+set.seed(500)
+MSN <- plot_poppr_msn(poppr, poppr.msn , palette = brewer.pal(n = nPop(poppr), name = "Dark2"), gadj = 70, wscale = F, gweight = 1, scale.leg = T, size.leg = F, quantiles = F, nodelab = 5, gscale = T, mlg.compute = "original")
+
+plot_poppr_msn(MSN)
+
+####Distance tree####
+
+#https://grunwaldlab.github.io/Population_Genetics_in_R/gbs_analysis.html
+
+#options: HD_vcf_loci_rm  FSD_vcf_loci_rm MSD_vcf_loci_rm
+poppr <- write_genind(MSD_vcf_loci_rm)
+
+tree <- aboot(poppr, tree = "upgma", distance = "dist", sample = 10000, showtree = F, cutoff = 20, quiet = T, missing = "ignore", mcutoff = 0, root = NULL, freq = TRUE)
+
+#summary_stats$tree$HD <- tree
+#summary_stats$tree$FSD <- tree
+#summary_stats$tree$MSD <- tree
+
+cols <- brewer.pal(n = nPop(poppr), name = "Dark2")
+plot.phylo(summary_stats$tree$MSD, type = "phylogram", cex = 0.8, font = 2, adj = 0, tip.color =  cols[pop(poppr)])
+nodelabels(summary_stats$tree$MSD$node.label, adj = c(1.3, -0.5), frame = "n", cex = 0.8,font = 3, xpd = TRUE)
+#legend(35,10,c("CA","OR","WA"),cols, border = FALSE, bty = "n")
+legend('topleft', legend = c("SCI_2","SCI_1","SCI_7", "SCI_3", "SCI_6"), fill = cols, border = FALSE, bty = "n", cex = 0.75)
+axis(side = 1)
+title(xlab = "Genetic distance (proportion of loci that are different)")
+
+#minimum spanning network
+#options: HD_vcf_loci_rm  FSD_vcf_loci_rm MSD_vcf_loci_rm
+poppr <- write_genind(HD_vcf_loci_rm)
+
+poppr.dist <- bitwise.dist(poppr)
+poppr.msn <- poppr.msn(poppr, poppr.dist, showplot = FALSE, include.ties = T)
+
+node.size <- rep(2, times = nInd(poppr))
+names(node.size) <- indNames(poppr)
+vertex.attributes(poppr.msn$graph)$size <- node.size
+
+set.seed(500)
+MSN <- plot_poppr_msn(poppr, poppr.msn , palette = brewer.pal(n = nPop(poppr), name = "Dark2"), gadj = 70, wscale = F, gweight = 1, scale.leg = T, size.leg = F, quantiles = F, nodelab = 5, gscale = T, mlg.compute = "original")
+
+plot_poppr_msn(summary_stats$poppr$FSD_MSN)
+
+#summary_stats$poppr$HD_MSN <- MSN
+#summary_stats$poppr$FSD_MSN <- MSN
+#summary_stats$poppr$MSD_MSN <- MSN
+
+####PCA####
+
+#Create a PCA using the R package Adegenet. 
+#Principal Component Analysis (PCA) is the amongst the most common multivariate analyses used in genetics.
+
+#options: HD_vcf_loci_rm  FSD_vcf_loci_rm MSD_vcf_loci_rm
+#write_genepop(MSD_vcf_loci_rm, parallel.core = 1, filename = "./MSD_GP") #radiator function and will write to working directory where the rmarkdown file is SAVED! So need to specify file location.
+
+#options PCA on all SCIs: "./HD_GP_genepop.gen" "./FSD_GP_genepop.gen" "./MSD_GP_genepop.gen"
+input.file <-  "./MSD_GP_genepop.gen"
+
+stacks_pop <- read.genepop(input.file, ncode = 3L, quiet = FALSE) #ncode half the digits used to code the allele as working with diploid individuals
+
+populations <- stacks_pop@pop
+populations #Check that individual representing population is correct so renaming of population can occur.
+populations <- gsub("02.7", "East_LNI", populations)
+populations <- gsub("04.9", "East_UNI", populations)
+#populations <- gsub("NEG_96", "NEG", populations)
+populations <- gsub("WHOLEblue", "West_Coast", populations)
+populations <- gsub("257.6", "Chatham_Rise", populations)
+populations <- gsub("299.8", "Auckland_Islands", populations)
+#populations <- gsub("WHOLEred", "West_Chatham_Rise", populations)
+stacks_pop@pop <- as.factor(populations)
+stacks_pop_freq <- tab(stacks_pop, freq=TRUE, NA.method="mean")
+stacks_pop_PCA <- dudi.pca(stacks_pop_freq, center=TRUE, scale=FALSE, scannf = FALSE, nf = 3)
+
+col_choice = brewer.pal(5, "Set1") #using Rcolorbrewer
+
+#plotting for axes 1 and 2. If want to see individuals s.label(stacks_pop_PCA$li)
+s.class(stacks_pop_PCA$li, fac=pop(stacks_pop), col=col_choice) #took away funky(15)
+add.scatter.eig(stacks_pop_PCA$eig[1:10],3,1,2, ratio=.15)
+
+#Plotting using axes 2 and 3
+s.class(stacks_pop_PCA$li, fac=pop(stacks_pop),
+        xax=2, yax=3, col=col_choice,
+        axesel=FALSE, cstar=0, cpoint=1)
+add.scatter.eig(stacks_pop_PCA$eig[1:10],4,2,3, ratio=.15)
+
+#for eigen values 
+eig <- (stacks_pop_PCA$eig[1:50])
+
+#summary_stats$PCA$HD_eig <- eig
+#summary_stats$PCA$FSD_eig <- eig
+#summary_stats$PCA$MSD_eig <- eig
+
+#eigenvalue as percentage
+eig.perc <- 100*stacks_pop_PCA$eig/sum(stacks_pop_PCA$eig)
+
+#summary_stats$PCA$HD_eig_perc <- eig.perc
+#summary_stats$PCA$FSD_eig_perc <- eig.perc
+#summary_stats$PCA$MSD_eig_perc <- eig.perc
+
+loadingplot(stacks_pop_PCA$c1^2, axis = 1, threshold = 0.005, lab.jitter = 1) #jitter avoids asjusting the data to be 'neater' on the plot?
+
+PCA_loci_LP <- as.data.frame(stacks_pop_PCA$c1^2)
+PCA_loci_LP$loci_names <- row.names(PCA_loci_LP)
+PCA_loci_LP <- filter(PCA_loci_LP, CS1 > 0.005)
+PCA_loci_LP[,4]
+
+#summary_stats$LP_outliers$HD <- PCA_loci_LP
+#summary_stats$LP_outliers$FSD <- PCA_loci_LP
+#summary_stats$LP_outliers$MSD <- PCA_loci_LP
+
+####DAPC####
+#In DAPC, discriminant functions are linear combinations of variables (principal components of PCA) which optimize the separation of individuals into pre-defined groups. Based on the retained discriminant functions, it is possible to derive group membership probabilities, which can be interpreted in order to assess how clear-cut or admixed the clusters are. In attempting to summarise high-dimensional data in a small number of meaningful discriminant functions, DAPC must manage a trade-off. If too few PCs (with respect to the number of individuals) are retained, useful information will be excluded from the analysis, and the resultant model will not be informative enough to accurately discriminate between groups. By contrast, if too many PCs are retained, this will have a destabilising effect on the coefficients extimated, leading to problems of overfit. In such cases, the model is able to describe all of the data in such detail that it becomes flexible enough to discriminate almost perfectly between any possible clusters. As a result, membership probabilities can become drastically inflated for the best-fitting cluster, resulting in apparent perfect discrimination. At the same time, however, the excessively complex model loses its ability to generalise to new or unseen data, as reflected in a loss of predictive capacity.
+
+#options: HD_vcf_loci_rm  FSD_vcf_loci_rm MSD_vcf_loci_rm
+DAPC <- write_genind(HD_vcf_loci_rm)
+
+#The number of retained PCs can be chosen so as to optimize the a-score.
+fortemp <- dapc(DAPC, n.da=100, n.pca=100)
+temp <- optim.a.score(fortemp)
+
+#DAPC based on BIC and alpha PCs retained
+grp <- find.clusters(DAPC, max.n.clust=30) #HD 11 PCs and 5 clusters; FSD 11 PCs and 5 (could be 6/7) clusters; MSD 10 PCs and 5 clusters
+
+table(pop(DAPC))
+
+#summary_stats$DAPCgrp$HD <- table(pop(DAPC), grp$grp)
+#summary_stats$DAPCgrp$FSD <- table(pop(DAPC), grp$grp)
+#summary_stats$DAPCgrp$MSD <- table(pop(DAPC), grp$grp)
+
+#assign
+y <- summary_stats$dapc_groups$HD$grp
+z <- summary_stats$dapc_groups$HD$assign
+y <- as.data.frame(y)
+z <- as.data.frame(z)
+a <- cbind(y, z)
+a$count <- rep(1)
+aggregate(count~., a, sum)
+
+y <- summary_stats$dapc_nogroups$HD$grp
+z <- summary_stats$dapc_nogroups$HD$assign
+y <- as.data.frame(y)
+z <- as.data.frame(z)
+a <- cbind(y, z)
+a$count <- rep(1)
+aggregate(count~., a, sum)
+a <- sub(1, "East_LNI", a)
+a <- gsub(2, "East_UNI", a)
+a <- gsub(3, "West_Coast", a)
+a <- gsub(4, "Chatham_Rise", a)
+a <- gsub(5, "Auckland_Islands", a)
+
+table.value(table(pop(DAPC), DAPC$pop), col.lab=paste("inf", 1:5), row.lab=paste("ori", 1:5))
+
+mycol = col_choice = brewer.pal(5, "Dark2")
+
+dapc1 <- dapc(DAPC, grp$grp, n.pca = 12, n.da = 2) #CHANGE PCs and 2 DFs - PCs graph and DFs
+#view grp$grp for order, in this case 1-5 as using 5 clusters, do majority assignments. So can't assign for CR/LNI/UNI as they are very mixed, but can for AI and WC to a point. Can also check if any individuals go into clusters they do not belong to in grp$grp.
+
+#summary_stats$dapc_nogroups$HD <- dapc1
+#summary_stats$dapc_nogroups$FSD <- dapc1
+#summary_stats$dapc_nogroups$MSD <- dapc1
+ 
+scatter(summary_stats$dapc_groups$HD, col = mycol, cex = 2, legend = TRUE, clabel = F, posi.leg = "topright", scree.pca = TRUE,
+        posi.pca = "topleft", posi.da = "bottomleft", cleg = 0.75)
+
+#Membership probabilities DAPC values
+
+#assignment plot
+assignplot(summary_stats$dapc_groups$HD, subset=1:86)
+
+
+#labels according to dapc1[["grp"]] - membership probability
+memprob <- as.data.frame(dapc1[["posterior"]])
+memprob$ID <- rownames(memprob)
+memprob <- gather(memprob, Group, Prob, 1:5) #CHANGE
+ggplot(memprob, aes(ID, Prob, fill = Group)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  xlab("Individuals") +
+  ylab("Membership probability")
+
+#most 'admixed' individuals
+# admixed individuals having no more than 60% of probability of membership in a single cluster
+#view temp for individuals IDs - can't seem to add it to the graph for some reason
+temp <- which(apply(dapc1$posterior,1, function(e) all(e<0.6)))
+temp <- as.data.frame(temp)
+temp$ID <- rownames(temp)
+temp <- semi_join(memprob, temp)
+ggplot(temp, aes(ID, Prob, fill = Group)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  xlab("Individuals") +
+  ylab("Membership probability")
+
+#ignoring the cross validation from the tutorial
+
+#DAPC using the already defined groups using the same number of PCs and DAs as previously used
+dapc_predefined <- dapc(DAPC, n.pca = 3, n.da = 2)
+
+#summary_stats$dapc_groups$HD <- dapc_predefined
+#summary_stats$dapc_groups$FSD <- dapc_predefined
+#summary_stats$dapc_groups$MSD <- dapc_predefined
+
+scatter(summary_stats$dapc_groups$MSD, col = mycol, cex = 2, legend = TRUE, clabel = F, posi.leg = "bottomleft", scree.pca = TRUE,
+        posi.pca = "topleft", cleg = 0.75)
+
+#assignment plot
+assignplot(dapc_predefined, subset=1:86)
+
+#labels according to dapc1[["grp"]] - membership probability
+memprob <- as.data.frame(dapc_predefined[["posterior"]])
+memprob$ID <- rownames(memprob)
+memprob <- gather(memprob, Group, Prob, 1:5) #CHANGE
+ggplot(memprob, aes(ID, Prob, fill = Group)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  xlab("Individuals") +
+  ylab("Membership probability")
+
+#most 'admixed' individuals
+# admixed individuals having no more than 60% of probability of membership in a single cluster
+#view temp for individuals IDs - can't seem to add it to the graph for some reason
+temp <- which(apply(dapc_predefined$posterior,1, function(e) all(e<0.6)))
+temp <- as.data.frame(temp)
+temp$ID <- rownames(temp)
+temp <- semi_join(memprob, temp)
+ggplot(temp, aes(ID, Prob, fill = Group)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  xlab("Individuals") +
+  ylab("Membership probability")
+#Loadingplot for DAPC
+dapc.LP <- dapc(DAPC, n.pca=3,n.da=2) #CHANGE
+
+loadingplot(dapc.LP$var.contr, axis=2,
+            thres=.005, lab.jitter=1) 
+
+DAPC_loci_LP <- as.data.frame(dapc.LP$var.contr)
+DAPC_loci_LP$loci_names <- row.names(DAPC_loci_LP)
+DAPC_loci_LP <- filter(DAPC_loci_LP, LD1 > 0.009)
+DAPC_loci_LP[,3]
+
+#summary_stats$DAPC$HD_LP <- DAPC_loci_LP
+#summary_stats$DAPC$FSD_LP <- DAPC_loci_LP
+#summary_stats$DAPC$MSD_LP <- DAPC_loci_LP
+
+####Diagnostic markers####
+
+#Diagnostic markers from PCA and DAPC
+PCA_LP <- summary_stats$LP_outliers$MSD #CHANGE
+PCA_LP <- PCA_LP %>% separate(loci_names, into  = c("MARKERS", "END"), sep = "[.]") 
+
+DAPC_LP <- summary_stats$DAPC$MSD_LP #CHANGE
+DAPC_LP <- DAPC_LP %>% separate(loci_names, into  = c("MARKERS", "END"), sep = "[.]") 
+
+DM <- full_join(PCA_LP, DAPC_LP, by = "MARKERS")
+
+unique(DM$MARKERS) #25
+
+#PCA with diagnostic markers
+#options
+diag_markers <- MSD_vcf_loci_rm #CHANGE
+diag_markers <- semi_join(diag_markers, DM, by = "MARKERS")
+
+#write_genepop(diag_markers, parallel.core = 1, filename = "./MSD_diag_markers") #radiator function and will write to working directory where the rmarkdown file is SAVED! So need to specify file location.
+
+#options
+input.file = "./MSD_diag_markers_genepop.gen" #CHANGE
+
+stacks_pop <- read.genepop(input.file, ncode = 3L, quiet = FALSE) #ncode half the digits used to code the allele as working with diploid individuals
+
+populations <- stacks_pop@pop
+populations #Check that individual representing population is correct so renaming of population can occur.
+populations <- gsub("02.7", "East_LNI", populations)
+populations <- gsub("04.9", "East_UNI", populations)
+#populations <- gsub("NEG_96", "NEG", populations)
+populations <- gsub("WHOLEblue", "West_Coast", populations)
+populations <- gsub("257.6", "Chatham_Rise", populations)
+populations <- gsub("299.8", "Auckland_Islands", populations)
+#populations <- gsub("WHOLEred", "West_Chatham_Rise", populations)
+stacks_pop@pop <- as.factor(populations)
+stacks_pop_freq <- tab(stacks_pop, freq=TRUE, NA.method="mean")
+stacks_pop_PCA <- dudi.pca(stacks_pop_freq, center=TRUE, scale=FALSE, scannf = FALSE, nf = 3)
+
+col_choice = brewer.pal(5, "Set1") #using Rcolorbrewer
+
+#plotting for axes 1 and 2. If want to see individuals s.label(stacks_pop_PCA$li)
+s.class(stacks_pop_PCA$li, fac=pop(stacks_pop), col=col_choice) #took away funky(15)
+add.scatter.eig(stacks_pop_PCA$eig[1:10],3,1,2, ratio=.15)
+
+#for eigen values 
+eig <- (stacks_pop_PCA$eig[1:50])
+
+#summary_stats$LP_eig$HD <- eig
+#summary_stats$LP_eig$FSD <- eig
+#summary_stats$LP_eig$MSD <- eig
+
+#eigenvalue as percentage
+eig.perc <- 100*stacks_pop_PCA$eig/sum(stacks_pop_PCA$eig)
+
+#summary_stats$LP_perc$HD <- eig.perc
+#summary_stats$LP_perc$FSD <- eig.perc
+#summary_stats$LP_perc$MSD <- eig.perc
+
+#Could see what nt is more frequent
+#view DM$rmpops to identify diagnostic markers
+#Can plot them
+
+#marker to plot - x = marker_of_choice
+x = "1__17363__13"
+
+test <- filter(SSD_tidy[,1:15], MARKERS == x)
+test <- test[,c("POP_ID", "GT_VCF_NUC")]
+test <- separate(test, 2, c("allele1", "allele2"), "/")
+test <- gather(test, "allele", "nt", -POP_ID)
+test$allele_count <- rep(1)
+test <- aggregate(allele_count~POP_ID+nt, test, sum)
+test <- filter(test, nt != ".")
+test$tot_indvs <- if_else(test$POP_ID == "East_LNI", test$allele_count/18*100, if_else(test$POP_ID == "East_UNI", test$allele_count/18*100, if_else(test$POP_ID == "Chatham_Rise", test$allele_count/15*100, if_else(test$POP_ID == "West_Coast", test$allele_count/18*100, test$allele_count/17*100))))
+test$tot_indvs <- test$tot_indvs/2 #two nt per indv - so have to divide the percentage in two
+
+#plot
+ggplot(test, aes(POP_ID, tot_indvs, shape = nt, color = nt, group = nt))+
+  geom_line(linetype="dashed", size=1.2, aes(color = nt), alpha=0.4)+
+  geom_point(size = 4)+
+  xlab("Locations")+
+  ylab("Percentage of individuals (%)")+
+  scale_y_continuous(limits = c(0,100))+
+  labs(title = paste("loci:", x, sep = " "))
+
+
+
+
+
+####PCA South_West and East####
+#options: HD_vcf_loci_rm  FSD_vcf_loci_rm MSD_vcf_loci_rm
+#South_West PCA
+#South_West <- MSD_vcf_loci_rm
+South_West <- filter(South_West, POP_ID != "East_LNI" & POP_ID != "East_UNI" & POP_ID != "Chatham_Rise")
+
+#write_genepop(South_West, parallel.core = 1, filename = "./MSD_South_West") #radiator function and will write to working directory where the rmarkdown file is SAVED! So need to specify file location.
+
+#options: HD_South_West FSD_South_West MSD_South_West
+
+input.file = "./MSD_South_West_genepop.gen"
+
+stacks_pop <- read.genepop(input.file, ncode = 3L, quiet = FALSE) #ncode half the digits used to code the allele as working with diploid individuals
+
+populations <- stacks_pop@pop
+populations #Check that individual representing population is correct so renaming of population can occur.
+populations <- gsub("WHOLEblue", "West_Coast", populations)
+populations <- gsub("299.8", "Auckland_Islands", populations)
+#populations <- gsub("WHOLEred", "West_Chatham_Rise", populations)
+stacks_pop@pop <- as.factor(populations)
+stacks_pop_freq <- tab(stacks_pop, freq=TRUE, NA.method="mean")
+stacks_pop_PCA <- dudi.pca(stacks_pop_freq, center=TRUE, scale=FALSE, scannf = FALSE, nf = 3)
+
+col_choice = brewer.pal(5, "Set1") #using Rcolorbrewer
+
+#plotting for axes 1 and 2. If want to see individuals s.label(stacks_pop_PCA$li)
+s.class(stacks_pop_PCA$li, fac=pop(stacks_pop), col=col_choice) #took away funky(15)
+add.scatter.eig(stacks_pop_PCA$eig[1:10],3,1,2, ratio=.15, sub = "Eigenvalues", csub = .1)
+
+#Plotting using axes 2 and 3
+s.class(stacks_pop_PCA$li, fac=pop(stacks_pop),
+        xax=2, yax=3, col=col_choice,
+        axesel=FALSE, cstar=0, cpoint=3)
+
+#for eigen values 
+eig <- (stacks_pop_PCA$eig[1:50])
+
+#summary_stats$West_South_eig$HD <- eig
+#summary_stats$West_South_eig$FSD <- eig
+#summary_stats$West_South_eig$MSD <- eig
+
+#eigenvalue as percentage
+eig.perc <- 100*stacks_pop_PCA$eig/sum(stacks_pop_PCA$eig)
+
+#summary_stats$West_South_eig_perc$HD <- eig.perc
+#summary_stats$West_South_eig_perc$FSD <- eig.perc
+#summary_stats$West_South_eig_perc$MSD <- eig.perc
+
+#options: HD_vcf_loci_rm  FSD_vcf_loci_rm MSD_vcf_loci_rm
+#East PCA
+#East <- MSD_vcf_loci_rm
+#East <- filter(East, POP_ID != "West_Coast" & POP_ID != "Auckland_Islands")
+
+#write_genepop(East, parallel.core = 1, filename = "./MSD_East") #radiator function and will write to working directory where the rmarkdown file is SAVED! So need to specify file location.
+
+#options  HD_East FSD_East MSD_East
+input.file = "./MSD_East_genepop.gen"
+
+stacks_pop <- read.genepop(input.file, ncode = 3L, quiet = FALSE) #ncode half the digits used to code the allele as working with diploid individuals
+
+populations <- stacks_pop@pop
+populations #Check that individual representing population is correct so renaming of population can occur.
+populations <- gsub("02.7", "LNI", populations)
+populations <- gsub("04.9", "UNI", populations)
+populations <- gsub("257.6", "CR", populations)
+stacks_pop@pop <- as.factor(populations)
+stacks_pop_freq <- tab(stacks_pop, freq=TRUE, NA.method="mean")
+stacks_pop_PCA <- dudi.pca(stacks_pop_freq, center=TRUE, scale=FALSE, scannf = FALSE, nf = 3)
+
+col_choice = brewer.pal(5, "Set1") #using Rcolorbrewer
+
+#plotting for axes 1 and 2. If want to see individuals s.label(stacks_pop_PCA$li)
+s.class(stacks_pop_PCA$li, fac=pop(stacks_pop), col=col_choice) #took away funky(15)
+add.scatter.eig(stacks_pop_PCA$eig[1:10],3,1,2, ratio=.15)
+
+#Plotting using axes 2 and 3
+s.class(stacks_pop_PCA$li, fac=pop(stacks_pop),
+        xax=2, yax=3, col=col_choice,
+        axesel=FALSE, cstar=0, cpoint=3)
+
+#for eigen values 
+eig <- (stacks_pop_PCA$eig[1:50])
+
+#summary_stats$East_eig$HD <- eig
+#summary_stats$East_eig$FSD <- eig
+#summary_stats$East_eig$MSD <- eig
+
+#eigenvalue as percentage
+eig.perc <- 100*stacks_pop_PCA$eig/sum(stacks_pop_PCA$eig)
+
+#summary_stats$East_eig_perc$HD <- eig.perc
+#summary_stats$East_eig_perc$FSD <- eig.perc
+#summary_stats$East_eig_perc$MSD <- eig.perc
+
+####STRUCTURE####
+#Using R package tutoR to look at the genetic makeup of the populations in comparison to each other.
+
+#write_structure(MSD_vcf_loci_rm, parallel.core = 1, filename = "./MSD_structure") #get a structure file format #CHANGE
+str_HD_SW <- HD_vcf_loci_rm
+str_HD_SW <- filter(str_HD_SW, POP_ID != "Chatham_Rise" & POP_ID != "East_UNI" & POP_ID != "East_LNI")
+write_structure(str_HD_SW, filename = "./str_HD_SW")
+
+#options
+structure <- read.delim("./HD_structure.str", header=FALSE) #for some reason still keeping the header #CHANGE
+scampi_str <- structure[2:173,] #remove header
+scampi_str$V1 <- as.character(scampi_str$V1)
+scampi_str$V1 <- gsub("^247.*", "247", scampi_str$V1)
+scampi_str$V1 <- gsub("^257.*", "257", scampi_str$V1)
+scampi_str$V1 <- gsub("^02.*", "02", scampi_str$V1)
+scampi_str$V1 <- gsub("^01.*", "01", scampi_str$V1)
+scampi_str$V1 <- gsub("^03.*", "03", scampi_str$V1)
+scampi_str$V1 <- gsub("^04.*", "03", scampi_str$V1)
+scampi_str$V1 <- gsub("^269.*", "269", scampi_str$V1)
+scampi_str$V1 <- gsub("^299.*", "299", scampi_str$V1)
+scampi_str$V1 <- gsub("^WC1.*", "WC1", scampi_str$V1)
+scampi_str$V1 <- gsub("^WC2.*", "WC2", scampi_str$V1)
+scampi_str$V1 <- gsub("^WHOLE.*", "WHOLE", scampi_str$V1)
+scampi_str$V1 <- gsub("^HALF.*", "HALF", scampi_str$V1)
+scampi_str <- rename(scampi_str, "Individual" = "V1")
+
+scampi_coords_str <- left_join(scampi_str, scampi_coords, by = "Individual")
+
+#Need to bring Long and Lat to columns 1 and 2 for correct formatting of .str. Remove column one that contains the names of the individuals
+scampi_coords_str <- scampi_coords_str[,c(986, 987, 2:985)]
+
+#Sw
+func_paste <- function(x) paste(unique(x), collapse = ', ')
+RM_SW_loci <- scampi_coords_str %>%
+  summarise_each(funs(func_paste))
+SW_RM <- rbind(scampi_coords_str, RM_SW_loci)
+SW_RM <- t(SW_RM)
+SW_RM <- as.data.frame(SW_RM)
+SW_RM$count <- rep(1)
+aggregate(count~V71, SW_RM, sum)
+SW_RM <- filter(SW_RM, SW_RM[,71] != 1)
+SW_RM <- filter(SW_RM, SW_RM[,71] != "-9, 1")
+SW_RM <- filter(SW_RM, SW_RM[,71] != "1, -9")
+SW_RM <- SW_RM[-298,]
+SW_RM <- t(SW_RM)
+SW_RM <- as.data.frame(SW_RM)
+SW_RM <- SW_RM[1:70,]
+
+write.table(SW_RM, "./str_HD_SW_coords.str", sep="\t", row.names = FALSE, col.names = FALSE) #CHANGE
+
+#options HD FSD MSD
+input.file = "./str_HD_SW_coords.str" #CHANGE
+
+snmf <- struct2geno(input.file, ploidy = 2, FORMAT = 2, extra.row = 0, extra.column = 3) #return output file in console
+
+#options HD FSD MSD
+obj.snmf = snmf("str_HD_SW_coords.str.geno", K = 1:8, project = "new", repetitions = 100, CPU = 1, alpha = 200, tolerance = 0.00001, entropy = T, percentage = 0.05, iterations = 500, ploidy = 2, seed = 10) #CHANGE
+
+#summary_stats$LEA$HD <- obj.snmf
+#summary_stats$LEA$FSD <- obj.snmf
+#summary_stats$LEA$MSD <- obj.snmf
+
+plot(summary_stats$LEA$MSD, col = "blue4", cex = 1.4, pch = 19)
+
+best = which.min(cross.entropy(summary_stats$LEA$MSD, K = 2))  #CHANGE
+
+qmatrix = Q(summary_stats$LEA$FSD, K = 2, run = best) #CHANGE
+
+scampi_names <- structure[2:173,1]
+scampi_names <- unique(scampi_names)
+scampi_names <- as.data.frame(scampi_names)
+scampi_names$no <- as.character(rep(1:86))
+
+test <- as.data.frame(qmatrix)
+test$no <- row.names(test)
+
+join <- left_join(test, scampi_names)
+#names(join) <- c("CR_LNI_UNI", "AI_WC","no", "ind") #K=2
+names(join) <- c("Group1", "Group2", "no", "ind") #CHANGE
+
+struc <- melt(join, id.vars=3:4) #CHANGE
+#this is for the pie charts
+struc$area <- struc$ind
+struc$area <- gsub("^247.*", "Chatham", struc$area)
+struc$area <- gsub("^257.*", "Chatham", struc$area)
+struc$area <- gsub("^01.*", "Lower", struc$area)
+struc$area <- gsub("^02.*", "Lower", struc$area)
+struc$area <- gsub("^03.*", "Upper", struc$area)
+struc$area <- gsub("^04.*", "Upper", struc$area)
+struc$area <- gsub("^269.*", "Akl", struc$area)
+struc$area <- gsub("^299.*", "Akl", struc$area)
+struc$area <- gsub("^WC1.*", "West", struc$area)
+struc$area <- gsub("^WC2.*", "West", struc$area)
+struc$area <- gsub("^WHOLE.*", "West", struc$area)
+struc$area <- gsub("^HALF.*", "West", struc$area)
+
+Set1 <- brewer.pal(8, "Set1")
+
+ggplot(struc, aes(ind, value, fill = variable)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  xlab("Individual") +
+  ylab("Admixture coefficients")
+
+pie <- struc
+pie <- aggregate(value~variable+area, pie, sum)
+pie$tot_ind <- c(rep(17, 2), rep(15, 2), rep(18, 2), rep(18, 2), rep(18, 2))
+pie$perc <- pie$value/pie$tot_ind
+ggplot(pie, aes(area, perc, fill = variable)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1")
+
+pie(pie$value, labels = pie$variable)
+summary_stats$LEA$HD 
+
+#a way to check that structure newly made matches to mapped pie charts
+
+#pie <- aggregate(value~variable+area, struc, mean)
+
+#ggplot(pie, aes(area, value, fill = variable)) +
+#geom_bar(stat = "identity") + 
+#coord_polar(theta="y") +
+#facet_wrap(~area) +
+#scale_fill_brewer(palette = "Set1") 
+
+#plot as given by tutoR
+#barplot(t(qmatrix), col = c("orange","violet","lightgreen", "blue", "red"), border = NA, space = 0, xlab = "Individuals", ylab = "Admixture coefficients")
+coords_indv <- scampi_coords_str[,1:2]
+  coord =  coords_indv[c(TRUE, FALSE),]
+#pop = rep(1:60, each = 10)
+pop = rep(1:5, c(18, 18, 18, 15, 17))
+
+K = 2 #CHANGE
+Npop = length(unique(pop))
+qpop = matrix(NA, ncol = K, nrow = Npop)
+coord.pop = matrix(NA, ncol = 2, nrow = Npop)
+for (i in unique(pop)){
+  qpop[i,] = apply(qmatrix[pop == i,], 2, mean)
+  coord.pop[i,] = apply(coord[pop == i,], 2, mean)}
+
+
+
+plot(coord, xlab = "Longitude", ylab = "Latitude", type = "n") +
+  map(add = T, col = "grey90", fill = TRUE)
+for (i in 1:Npop){
+  add.pie(z = qpop[i,], x = coord.pop[i,1], y = coord.pop[i,2], labels = "",
+          col = Set1)}
+
+##K THREE
+best = which.min(cross.entropy(summary_stats$LEA$HD, K = 3))  #CHANGE
+
+qmatrix = Q(summary_stats$LEA$HD, K = 3, run = best) #CHANGE
+
+scampi_names <- structure[2:173,1]
+scampi_names <- unique(scampi_names)
+scampi_names <- as.data.frame(scampi_names)
+scampi_names$no <- as.character(rep(1:86))
+
+test <- as.data.frame(qmatrix)
+test$no <- row.names(test)
+
+join <- left_join(test, scampi_names)
+#names(join) <- c("CR_LNI_UNI", "AI_WC","no", "ind") #K=2
+names(join) <- c("Group1", "Group2", "Group3", "no", "ind") #CHANGE
+
+struc <- melt(join, id.vars=4:5) #CHANGE
+#this is for the pie charts
+struc$area <- struc$ind
+struc$area <- gsub("^247.*", "Chatham", struc$area)
+struc$area <- gsub("^257.*", "Chatham", struc$area)
+struc$area <- gsub("^01.*", "Lower", struc$area)
+struc$area <- gsub("^02.*", "Lower", struc$area)
+struc$area <- gsub("^03.*", "Upper", struc$area)
+struc$area <- gsub("^04.*", "Upper", struc$area)
+struc$area <- gsub("^269.*", "Akl", struc$area)
+struc$area <- gsub("^299.*", "Akl", struc$area)
+struc$area <- gsub("^WC1.*", "West", struc$area)
+struc$area <- gsub("^WC2.*", "West", struc$area)
+struc$area <- gsub("^WHOLE.*", "West", struc$area)
+struc$area <- gsub("^HALF.*", "West", struc$area)
+
+Set1 <- brewer.pal(8, "Set1")
+
+ggplot(struc, aes(ind, value, fill = variable)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  xlab("Individual") +
+  ylab("Admixture coefficients")
+
+pie <- struc
+pie <- aggregate(value~variable+area, pie, sum)
+pie$tot_ind <- c(rep(17, 3), rep(15, 3), rep(18, 3), rep(18, 3), rep(18, 3))
+pie$perc <- pie$value/pie$tot_ind
+ggplot(pie, aes(area, perc, fill = variable)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1")
+
+#a way to check that structure newly made matches to mapped pie charts
+
+#pie <- aggregate(value~variable+area, struc, mean)
+
+#ggplot(pie, aes(area, value, fill = variable)) +
+#geom_bar(stat = "identity") + 
+#coord_polar(theta="y") +
+#facet_wrap(~area) +
+#scale_fill_brewer(palette = "Set1") 
+
+#plot as given by tutoR
+#barplot(t(qmatrix), col = c("orange","violet","lightgreen", "blue", "red"), border = NA, space = 0, xlab = "Individuals", ylab = "Admixture coefficients")
+coords_indv <- scampi_coords_str[,1:2]
+coord =  coords_indv[c(TRUE, FALSE),]
+#pop = rep(1:60, each = 10)
+pop = rep(1:5, c(18, 18, 18, 15, 17))
+
+K = 3 #CHANGE
+Npop = length(unique(pop))
+qpop = matrix(NA, ncol = K, nrow = Npop)
+coord.pop = matrix(NA, ncol = 2, nrow = Npop)
+for (i in unique(pop)){
+  qpop[i,] = apply(qmatrix[pop == i,], 2, mean)
+  coord.pop[i,] = apply(coord[pop == i,], 2, mean)}
+
+
+
+plot(coord, xlab = "Longitude", ylab = "Latitude", type = "n") +
+  map(add = T, col = "grey90", fill = TRUE)
+for (i in 1:Npop){
+  add.pie(z = qpop[i,], x = coord.pop[i,1], y = coord.pop[i,2], labels = "",
+          col = Set1)}
+
+##K FOUR
+best = which.min(cross.entropy(summary_stats$LEA$HD, K = 4))  #CHANGE
+
+qmatrix = Q(summary_stats$LEA$HD, K = 4, run = best) #CHANGE
+
+scampi_names <- structure[2:173,1]
+scampi_names <- unique(scampi_names)
+scampi_names <- as.data.frame(scampi_names)
+scampi_names$no <- as.character(rep(1:86))
+
+test <- as.data.frame(qmatrix)
+test$no <- row.names(test)
+
+join <- left_join(test, scampi_names)
+#names(join) <- c("CR_LNI_UNI", "AI_WC","no", "ind") #K=2
+names(join) <- c("Group1", "Group2", "Group3", "Group4",  "no", "ind") #CHANGE
+
+struc <- melt(join, id.vars=5:6) #CHANGE
+#this is for the pie charts
+struc$area <- struc$ind
+struc$area <- gsub("^247.*", "Chatham", struc$area)
+struc$area <- gsub("^257.*", "Chatham", struc$area)
+struc$area <- gsub("^01.*", "Lower", struc$area)
+struc$area <- gsub("^02.*", "Lower", struc$area)
+struc$area <- gsub("^03.*", "Upper", struc$area)
+struc$area <- gsub("^04.*", "Upper", struc$area)
+struc$area <- gsub("^269.*", "Akl", struc$area)
+struc$area <- gsub("^299.*", "Akl", struc$area)
+struc$area <- gsub("^WC1.*", "West", struc$area)
+struc$area <- gsub("^WC2.*", "West", struc$area)
+struc$area <- gsub("^WHOLE.*", "West", struc$area)
+struc$area <- gsub("^HALF.*", "West", struc$area)
+
+Set1 <- brewer.pal(8, "Set1")
+
+ggplot(struc, aes(ind, value, fill = variable)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  xlab("Individual") +
+  ylab("Admixture coefficients")
+
+pie <- struc
+pie <- aggregate(value~variable+area, pie, sum)
+pie$tot_ind <- c(rep(17, 4), rep(15, 4), rep(18, 4), rep(18, 4), rep(18, 4))
+pie$perc <- pie$value/pie$tot_ind
+
+#pie$xaxis <- if_else(pie$area == "Akl", 1, if_else(pie$area == "Chatham", 2, if_else(pie$area == "Lower", 3, if_else(pie$area == "Upper", 4, 5))))
+
+pie$area <- factor(pie$area)
+pie$perc <- factor(pie$perc)
+
+bar2pie <- ggplot(pie, aes(factor(1), perc, fill = variable)) +
+  geom_bar(stat = "identity", width = 1) +
+  scale_x_discrete(NULL, expand = c(0,0)) +
+  scale_y_continuous(NULL, expand = c(0,0)) +
+  scale_fill_brewer(palette = "Set1") + #next time set to bnw
+  facet_grid(.~area) + 
+  coord_polar("y", start=0) 
+
+#a way to check that structure newly made matches to mapped pie charts
+
+#pie <- aggregate(value~variable+area, struc, mean)
+
+#ggplot(pie, aes(area, value, fill = variable)) +
+#geom_bar(stat = "identity") + 
+#coord_polar(theta="y") +
+#facet_wrap(~area) +
+#scale_fill_brewer(palette = "Set1") 
+
+#plot as given by tutoR
+#barplot(t(qmatrix), col = c("orange","violet","lightgreen", "blue", "red"), border = NA, space = 0, xlab = "Individuals", ylab = "Admixture coefficients")
+coords_indv <- scampi_coords_str[,1:2]
+coord =  coords_indv[c(TRUE, FALSE),]
+#pop = rep(1:60, each = 10)
+pop = rep(1:5, c(18, 18, 18, 15, 17))
+
+K = 4 #CHANGE
+Npop = length(unique(pop))
+qpop = matrix(NA, ncol = K, nrow = Npop)
+coord.pop = matrix(NA, ncol = 2, nrow = Npop)
+for (i in unique(pop)){
+  qpop[i,] = apply(qmatrix[pop == i,], 2, mean)
+  coord.pop[i,] = apply(coord[pop == i,], 2, mean)}
+
+
+
+plot(coord, xlab = "Longitude", ylab = "Latitude", type = "n") +
+  map(add = T, col = "grey90", fill = TRUE)
+for (i in 1:Npop){
+  add.pie(z = qpop[i,], x = coord.pop[i,1], y = coord.pop[i,2], labels = "",
+          col = Set1)}
+
+##K FIVE
+best = which.min(cross.entropy(summary_stats$LEA$HD, K = 5))  #CHANGE
+
+qmatrix = Q(summary_stats$LEA$HD, K = 5, run = best) #CHANGE
+
+scampi_names <- structure[2:173,1]
+scampi_names <- unique(scampi_names)
+scampi_names <- as.data.frame(scampi_names)
+scampi_names$no <- as.character(rep(1:86))
+
+test <- as.data.frame(qmatrix)
+test$no <- row.names(test)
+
+join <- left_join(test, scampi_names)
+#names(join) <- c("CR_LNI_UNI", "AI_WC","no", "ind") #K=2
+names(join) <- c("Group1", "Group2", "Group3", "Group4", "Group5","no", "ind") #CHANGE
+
+struc <- melt(join, id.vars=6:7) #CHANGE
+#this is for the pie charts
+struc$area <- struc$ind
+struc$area <- gsub("^247.*", "Chatham", struc$area)
+struc$area <- gsub("^257.*", "Chatham", struc$area)
+struc$area <- gsub("^01.*", "Lower", struc$area)
+struc$area <- gsub("^02.*", "Lower", struc$area)
+struc$area <- gsub("^03.*", "Upper", struc$area)
+struc$area <- gsub("^04.*", "Upper", struc$area)
+struc$area <- gsub("^269.*", "Akl", struc$area)
+struc$area <- gsub("^299.*", "Akl", struc$area)
+struc$area <- gsub("^WC1.*", "West", struc$area)
+struc$area <- gsub("^WC2.*", "West", struc$area)
+struc$area <- gsub("^WHOLE.*", "West", struc$area)
+struc$area <- gsub("^HALF.*", "West", struc$area)
+
+Set1 <- brewer.pal(8, "Set1")
+
+ggplot(struc, aes(ind, value, fill = variable)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  xlab("Individual") +
+  ylab("Admixture coefficients")
+
+pie <- struc
+pie <- aggregate(value~variable+area, pie, sum)
+pie$tot_ind <- c(rep(17, 5), rep(15, 5), rep(18, 5), rep(18, 5), rep(18, 5))
+pie$perc <- pie$value/pie$tot_ind
+ggplot(pie, aes(area, perc, fill = variable)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1")
+
+#a way to check that structure newly made matches to mapped pie charts
+
+#pie <- aggregate(value~variable+area, struc, mean)
+
+#ggplot(pie, aes(area, value, fill = variable)) +
+#geom_bar(stat = "identity") + 
+#coord_polar(theta="y") +
+#facet_wrap(~area) +
+#scale_fill_brewer(palette = "Set1") 
+
+#plot as given by tutoR
+#barplot(t(qmatrix), col = c("orange","violet","lightgreen", "blue", "red"), border = NA, space = 0, xlab = "Individuals", ylab = "Admixture coefficients")
+coords_indv <- scampi_coords_str[,1:2]
+coord =  coords_indv[c(TRUE, FALSE),]
+#pop = rep(1:60, each = 10)
+pop = rep(1:5, c(18, 18, 18, 15, 17))
+
+K = 5 #CHANGE
+Npop = length(unique(pop))
+qpop = matrix(NA, ncol = K, nrow = Npop)
+coord.pop = matrix(NA, ncol = 2, nrow = Npop)
+for (i in unique(pop)){
+  qpop[i,] = apply(qmatrix[pop == i,], 2, mean)
+  coord.pop[i,] = apply(coord[pop == i,], 2, mean)}
+
+
+
+plot(coord, xlab = "Longitude", ylab = "Latitude", type = "n") +
+  map(add = T, col = "grey90", fill = TRUE)
+for (i in 1:Npop){
+  add.pie(z = qpop[i,], x = coord.pop[i,1], y = coord.pop[i,2], labels = "",
+          col = Set1)}
+
+#K SIX
+
+
+best = which.min(cross.entropy(summary_stats$LEA$HD, K = 8))  #CHANGE
+
+qmatrix = Q(obj.snmf, K = 8, run = best) #CHANGE
+
+scampi_names <- structure[2:173,1]
+scampi_names <- unique(scampi_names)
+scampi_names <- as.data.frame(scampi_names)
+scampi_names$no <- as.character(rep(1:86))
+
+test <- as.data.frame(qmatrix)
+test$no <- row.names(test)
+
+join <- left_join(test, scampi_names)
+#names(join) <- c("CR_LNI_UNI", "AI_WC","no", "ind") #K=2
+names(join) <- c("Group1", "Group2", "Group 3", "Group 4", "Group 5", "Group 6", "Group 7", "Group 8", "no", "ind") #CHANGE
+
+struc <- melt(join, id.vars=9:10) #CHANGE
+#this is for the pie charts
+struc$area <- struc$ind
+struc$area <- gsub("^247.*", "Chatham", struc$area)
+struc$area <- gsub("^257.*", "Chatham", struc$area)
+struc$area <- gsub("^01.*", "Lower", struc$area)
+struc$area <- gsub("^02.*", "Lower", struc$area)
+struc$area <- gsub("^03.*", "Upper", struc$area)
+struc$area <- gsub("^04.*", "Upper", struc$area)
+struc$area <- gsub("^269.*", "Akl", struc$area)
+struc$area <- gsub("^299.*", "Akl", struc$area)
+struc$area <- gsub("^WC1.*", "West", struc$area)
+struc$area <- gsub("^WC2.*", "West", struc$area)
+struc$area <- gsub("^WHOLE.*", "West", struc$area)
+struc$area <- gsub("^HALF.*", "West", struc$area)
+
+Set1 <- brewer.pal(8, "Set1")
+
+ggplot(struc, aes(ind, value, fill = variable)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  xlab("Individual") +
+  ylab("Admixture coefficients")
+
+#a way to check that structure newly made matches to mapped pie charts
+
+#pie <- aggregate(value~variable+area, struc, mean)
+
+#ggplot(pie, aes(area, value, fill = variable)) +
+#geom_bar(stat = "identity") + 
+#coord_polar(theta="y") +
+#facet_wrap(~area) +
+#scale_fill_brewer(palette = "Set1") 
+
+#plot as given by tutoR
+#barplot(t(qmatrix), col = c("orange","violet","lightgreen", "blue", "red"), border = NA, space = 0, xlab = "Individuals", ylab = "Admixture coefficients")
+coords_indv <- scampi_coords_str[,1:2]
+coord =  coords_indv[c(TRUE, FALSE),]
+#pop = rep(1:60, each = 10)
+pop = rep(1:5, c(18, 18, 18, 15, 17))
+
+K = 6 #CHANGE
+Npop = length(unique(pop))
+qpop = matrix(NA, ncol = K, nrow = Npop)
+coord.pop = matrix(NA, ncol = 2, nrow = Npop)
+for (i in unique(pop)){
+  qpop[i,] = apply(qmatrix[pop == i,], 2, mean)
+  coord.pop[i,] = apply(coord[pop == i,], 2, mean)}
+
+
+
+plot(coord, xlab = "Longitude", ylab = "Latitude", type = "n") +
+  map(add = T, col = "grey90", fill = TRUE)
+for (i in 1:Npop){
+  add.pie(z = qpop[i,], x = coord.pop[i,1], y = coord.pop[i,2], labels = "",
+          col = Set1)}
+
+#K SEVEN
+#options HD FSD MSD
+input.file = "./HD_scampi_coords_str.str" #CHANGE
+
+snmf <- struct2geno(input.file, ploidy = 2, FORMAT = 2, extra.row = 0, extra.column = 3) #return output file in console
+
+#options HD FSD MSD
+obj.snmf = snmf("MSD_scampi_coords_str.str.geno", K = 1:8, project = "new", repetitions = 100, CPU = 1, alpha = 200, tolerance = 0.00001, entropy = T, percentage = 0.05, iterations = 500, ploidy = 2, seed = 10) #CHANGE
+
+#summary_stats$LEA$HD <- obj.snmf
+#summary_stats$LEA$FSD <- obj.snmf
+#summary_stats$LEA$MSD <- obj.snmf
+
+plot(obj.snmf, col = "blue4", cex = 1.4, pch = 19)
+
+best = which.min(cross.entropy(obj.snmf, K = 2))  #CHANGE
+
+qmatrix = Q(obj.snmf, K = 2, run = best) #CHANGE
+
+scampi_names <- structure[2:173,1]
+scampi_names <- unique(scampi_names)
+scampi_names <- as.data.frame(scampi_names)
+scampi_names$no <- as.character(rep(1:86))
+
+test <- as.data.frame(qmatrix)
+test$no <- row.names(test)
+
+join <- left_join(test, scampi_names)
+#names(join) <- c("CR_LNI_UNI", "AI_WC","no", "ind") #K=2
+names(join) <- c("Group1", "Group2", "no", "ind") #CHANGE
+
+struc <- melt(join, id.vars=3:4) #CHANGE
+#this is for the pie charts
+struc$area <- struc$ind
+struc$area <- gsub("^247.*", "Chatham", struc$area)
+struc$area <- gsub("^257.*", "Chatham", struc$area)
+struc$area <- gsub("^01.*", "Lower", struc$area)
+struc$area <- gsub("^02.*", "Lower", struc$area)
+struc$area <- gsub("^03.*", "Upper", struc$area)
+struc$area <- gsub("^04.*", "Upper", struc$area)
+struc$area <- gsub("^269.*", "Akl", struc$area)
+struc$area <- gsub("^299.*", "Akl", struc$area)
+struc$area <- gsub("^WC1.*", "West", struc$area)
+struc$area <- gsub("^WC2.*", "West", struc$area)
+struc$area <- gsub("^WHOLE.*", "West", struc$area)
+struc$area <- gsub("^HALF.*", "West", struc$area)
+
+Set1 <- brewer.pal(8, "Set1")
+
+ggplot(struc, aes(ind, value, fill = variable)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  xlab("Individual") +
+  ylab("Admixture coefficients")
+
+#a way to check that structure newly made matches to mapped pie charts
+
+#pie <- aggregate(value~variable+area, struc, mean)
+
+#ggplot(pie, aes(area, value, fill = variable)) +
+#geom_bar(stat = "identity") + 
+#coord_polar(theta="y") +
+#facet_wrap(~area) +
+#scale_fill_brewer(palette = "Set1") 
+
+#plot as given by tutoR
+#barplot(t(qmatrix), col = c("orange","violet","lightgreen", "blue", "red"), border = NA, space = 0, xlab = "Individuals", ylab = "Admixture coefficients")
+coords_indv <- scampi_coords_str[,1:2]
+coord =  coords_indv[c(TRUE, FALSE),]
+#pop = rep(1:60, each = 10)
+pop = rep(1:5, c(18, 18, 18, 15, 17))
+
+K = 2 #CHANGE
+Npop = length(unique(pop))
+qpop = matrix(NA, ncol = K, nrow = Npop)
+coord.pop = matrix(NA, ncol = 2, nrow = Npop)
+for (i in unique(pop)){
+  qpop[i,] = apply(qmatrix[pop == i,], 2, mean)
+  coord.pop[i,] = apply(coord[pop == i,], 2, mean)}
+
+
+
+plot(coord, xlab = "Longitude", ylab = "Latitude", type = "n") +
+  map(add = T, col = "grey90", fill = TRUE)
+for (i in 1:Npop){
+  add.pie(z = qpop[i,], x = coord.pop[i,1], y = coord.pop[i,2], labels = "",
+          col = Set1)}
+
+#K EIGHT
+#options HD FSD MSD
+input.file = "./HD_scampi_coords_str.str" #CHANGE
+
+snmf <- struct2geno(input.file, ploidy = 2, FORMAT = 2, extra.row = 0, extra.column = 3) #return output file in console
+
+#options HD FSD MSD
+obj.snmf = snmf("MSD_scampi_coords_str.str.geno", K = 1:8, project = "new", repetitions = 100, CPU = 1, alpha = 200, tolerance = 0.00001, entropy = T, percentage = 0.05, iterations = 500, ploidy = 2, seed = 10) #CHANGE
+
+#summary_stats$LEA$HD <- obj.snmf
+#summary_stats$LEA$FSD <- obj.snmf
+#summary_stats$LEA$MSD <- obj.snmf
+
+plot(obj.snmf, col = "blue4", cex = 1.4, pch = 19)
+
+best = which.min(cross.entropy(obj.snmf, K = 2))  #CHANGE
+
+qmatrix = Q(obj.snmf, K = 2, run = best) #CHANGE
+
+scampi_names <- structure[2:173,1]
+scampi_names <- unique(scampi_names)
+scampi_names <- as.data.frame(scampi_names)
+scampi_names$no <- as.character(rep(1:86))
+
+test <- as.data.frame(qmatrix)
+test$no <- row.names(test)
+
+join <- left_join(test, scampi_names)
+#names(join) <- c("CR_LNI_UNI", "AI_WC","no", "ind") #K=2
+names(join) <- c("Group1", "Group2", "no", "ind") #CHANGE
+
+struc <- melt(join, id.vars=3:4) #CHANGE
+#this is for the pie charts
+struc$area <- struc$ind
+struc$area <- gsub("^247.*", "Chatham", struc$area)
+struc$area <- gsub("^257.*", "Chatham", struc$area)
+struc$area <- gsub("^01.*", "Lower", struc$area)
+struc$area <- gsub("^02.*", "Lower", struc$area)
+struc$area <- gsub("^03.*", "Upper", struc$area)
+struc$area <- gsub("^04.*", "Upper", struc$area)
+struc$area <- gsub("^269.*", "Akl", struc$area)
+struc$area <- gsub("^299.*", "Akl", struc$area)
+struc$area <- gsub("^WC1.*", "West", struc$area)
+struc$area <- gsub("^WC2.*", "West", struc$area)
+struc$area <- gsub("^WHOLE.*", "West", struc$area)
+struc$area <- gsub("^HALF.*", "West", struc$area)
+
+Set1 <- brewer.pal(8, "Set1")
+
+ggplot(struc, aes(ind, value, fill = variable)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  xlab("Individual") +
+  ylab("Admixture coefficients")
+
+#a way to check that structure newly made matches to mapped pie charts
+
+#pie <- aggregate(value~variable+area, struc, mean)
+
+#ggplot(pie, aes(area, value, fill = variable)) +
+#geom_bar(stat = "identity") + 
+#coord_polar(theta="y") +
+#facet_wrap(~area) +
+#scale_fill_brewer(palette = "Set1") 
+
+#plot as given by tutoR
+#barplot(t(qmatrix), col = c("orange","violet","lightgreen", "blue", "red"), border = NA, space = 0, xlab = "Individuals", ylab = "Admixture coefficients")
+coords_indv <- scampi_coords_str[,1:2]
+coord =  coords_indv[c(TRUE, FALSE),]
+#pop = rep(1:60, each = 10)
+pop = rep(1:5, c(18, 18, 18, 15, 17))
+
+K = 2 #CHANGE
+Npop = length(unique(pop))
+qpop = matrix(NA, ncol = K, nrow = Npop)
+coord.pop = matrix(NA, ncol = 2, nrow = Npop)
+for (i in unique(pop)){
+  qpop[i,] = apply(qmatrix[pop == i,], 2, mean)
+  coord.pop[i,] = apply(coord[pop == i,], 2, mean)}
+
+
+
+plot(coord, xlab = "Longitude", ylab = "Latitude", type = "n") +
+  map(add = T, col = "grey90", fill = TRUE)
+for (i in 1:Npop){
+  add.pie(z = qpop[i,], x = coord.pop[i,1], y = coord.pop[i,2], labels = "",
+          col = Set1)}
+
+
+####Outlier detection####
+#LEA outlier detection can be used for multiallelic data
+best = which.min(cross.entropy(summary_stats$LEA$MSD, K = 2)) #CHANGE
+p.val.snmf <- snmf.pvalues(summary_stats$LEA$MSD, entropy = TRUE, ploidy = 2, K = 2, run = best, genomic.control = TRUE) #CHANGE
+plot(-log10(p.val.snmf$pvalues), pch = 19, col = "blue", cex = .7)
+p.val.snmf <- as.data.frame(p.val.snmf)
+p.val.snmf$qval <- qvalue(p.val.snmf$pvalues)$qvalue
+p.val.snmf$no <- rep(1:983)
+
+loci_no <- unique(HD_vcf_loci_rm$LOCUS)
+loci_no <- as.data.frame(loci_no)
+loci_no$no <- rep(1:983)
+
+snmf_outliers <- left_join(p.val.snmf, loci_no)
+snmf_outliers <- filter(snmf_outliers, qval < 0.1)
+snmf_outliers$LEA <- rep("YES") 
+
+
+#write Bayescan file - for some reason can't easily run radiators write_bayescan and takes a much longer than hierfstat does to convert the file.
+
+#options: HD_vcf_loci_rm  FSD_vcf_loci_rm MSD_vcf_loci_rm
+#hierf <- write_hierfstat(MSD_vcf_loci_rm)
+#write.bayescan(hierf, diploid = T, fn = "MSD_bayescan")
+
+
+#using GUI
+#options HD_bayescan_fst.txt FSD_bayescan_fst.txt MSD_bayescan_fst.txt
+Bayescan_results_fst <- read.csv("./HD_bayescan_fst.txt", sep="")
+  
+#filter for outliers qvalue < 0.05
+Bayescan_results_fst$no <- rep(1:983)
+Bayescan_results_fst <- filter(Bayescan_results_fst, qval < 0.2)
+outliers_ref_vcf_BS <- left_join(Bayescan_results_fst, loci_no)
+outliers_ref_vcf_BS$Bayescan <- rep("YES")
+
+
+#If want to plot using the bayescan plot function, need to copy and paste function in C:\Users\Aimz\Documents\AKL_UNI\GBS\BayeScan2.1\R functions\plot_R.r and then graph will work.
+#results<-plot_bayescan("Bayescan/2137_20191114_fst.txt",0,FDR=0.05)
+#results$outliers
+
+#outflank
+#tutorial https://adnguyen.github.io/2017_Ecological_Genomics/Tutorial/2017-04-03_OUTFLANK-yourself.html
+
+#have previously already converted files to .geno for STRUCTURE analyses
+
+#options: HD_scampi_coords_str.str.geno
+ssw.geno.in<-read.fwf("./MSD_scampi_coords_str.str.geno",width=rep(1,86))
+#dim(ssw.geno.in) #orgininal dimensions
+ssw.geno<-t(ssw.geno.in)
+#dim(ssw.geno) #transposed check dimensions have switched
+
+Bayescan_meta <- scampi_names
+Bayescan_meta$Area <- Bayescan_meta$scampi_names 
+Bayescan_meta$Area <- gsub("^247.*", "CR", Bayescan_meta$Area)
+Bayescan_meta$Area <- gsub("^257.*", "CR", Bayescan_meta$Area)
+Bayescan_meta$Area <- gsub("^02.*", "LNI", Bayescan_meta$Area)
+Bayescan_meta$Area <- gsub("^01.*", "LNI", Bayescan_meta$Area)
+Bayescan_meta$Area <- gsub("^03.*", "UNI", Bayescan_meta$Area)
+Bayescan_meta$Area <- gsub("^04.*", "UNI", Bayescan_meta$Area)
+Bayescan_meta$Area <- gsub("^269.*", "AI", Bayescan_meta$Area)
+Bayescan_meta$Area <- gsub("^299.*", "AI", Bayescan_meta$Area)
+Bayescan_meta$Area <- gsub("^WC1.*", "WC", Bayescan_meta$Area)
+Bayescan_meta$Area <- gsub("^WC2.*", "WC", Bayescan_meta$Area)
+Bayescan_meta$Area <- gsub("^WHOLE.*", "WC", Bayescan_meta$Area)
+Bayescan_meta$Area <- gsub("^HALF.*", "WC", Bayescan_meta$Area)
+
+OF_SNPs<-MakeDiploidFSTMat(ssw.geno,locusNames=as.list(loci_no$loci_no),popNames=as.list(Bayescan_meta$Area))
+
+#hist(OF_SNPs$FST)
+
+OF_out<-OutFLANK(FstDataFrame = OF_SNPs,NumberOfSamples = 5,qthreshold=0.1)
+#str(OF_out)
+
+#OutFLANKResultsPlotter(OF_out,withOutliers =T,NoCorr=T,Hmin=.1,binwidth=0.005) #looks great
+
+OutFlank_outliers <- as.data.frame(OF_out$results)
+OutFlank_outliers <- filter(OutFlank_outliers, qvalues <0.3)
+OutFlank_outliers <- rename(loci_no = LocusName, OutFlank_outliers)
+OutFlank_outliers$OutFlank <- rep("YES")
+
+
+#PCADAPT - NOT USING - SKIP!!!
+#Reading genotype data
+pcadapt_data <- write_pcadapt(FSD_vcf_loci_rm) #doesnt work with multiallelic datasets
+pcadapt_data <- read.pcadapt(pcadapt_data$genotype.matrix)
+
+#Choosing the number K of Principal Components
+#K_PC <- pcadapt(pcadapt_data, K = 4, min.maf = 0)
+#plot(K_PC, option = "screeplot")
+
+#Computing the test statistic based on PCA
+PC_3 <- pcadapt(pcadapt_data, K = 3, method = "mahalanobis", min.maf = 0,
+                ploidy = 2, LD.clumping = NULL, pca.only = FALSE)
+
+#convert p-values to q-values
+pcadapt_qval <- qvalue(PC_3$pvalues)$qvalues
+
+#find outliers qvalue < 0.1
+pcadapt_outliers <- as.data.frame(pcadapt_qval)
+pcadapt_outliers$no <- as.integer(rownames(pcadapt_outliers))
+pcadapt_outliers <- left_join(pcadapt_outliers, loci_no)
+pcadapt_outliers <- which(pcadapt_outliers$pcadapt_qval < 0.1)
+pcadapt_outliers$pcadapt <- rep("YES")
+
+#add together
+DAPC_outliers <- as.data.frame(summary_stats$DAPC$FSD_LP)
+DAPC_outliers$loci_names <- rownames(DAPC_outliers)
+DAPC_outliers <- filter(DAPC_outliers, LD1 > 0.009)
+DAPC_outliers <- DAPC_outliers %>% separate(loci_names, into  = c("loci_no", "END"), sep = "[.]") 
+DAPC_outliers$loci_no <- gsub("^1__",'',DAPC_outliers$loci_no)
+DAPC_outliers$loci_no <- gsub("__\\d+",'',DAPC_outliers$loci_no)
+#DAPC_outliers$loci_no <- gsub("[.]\\d+",'',DAPC_outliers$loci_no)
+DAPC_outliers$adegenet <- rep("YES")
+DAPC_outliers <- DAPC_outliers[,c("loci_no", "adegenet")]
+DAPC_outliers <- unique(DAPC_outliers)
+
+
+snmf_outliers <- snmf_outliers[,5:6] 
+
+outliers_ref_vcf_BS <- outliers_ref_vcf_BS[7:8]
+
+OutFlank_outliers <- OutFlank_outliers[,c("loci_no", "OutFlank")]
+
+#outliers_pcadapt <- outliers_ref_vcf[,c("loci_no", "pcadapt")]
+
+outliers <- full_join(DAPC_outliers, snmf_outliers, by = "loci_no")
+outliers <- full_join(outliers, outliers_ref_vcf_BS)
+outliers <- full_join(outliers, OutFlank_outliers)
+#outliers <- left_join(outliers, outliers_pcadapt)
+
+#summary_stats$Outliers$HD <- outliers
+#summary_stats$Outliers$FSD <- outliers
+#summary_stats$Outliers$MSD <- outliers
