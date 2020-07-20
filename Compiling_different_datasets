@@ -1,0 +1,51 @@
+#In the manuscript three different types of datasets, composed from the original data, were tested.
+#1. Haplotype dataset - Stacks output: "populations.haps.vcf"
+#2. Random SNP dataset - in this case the first SNP on the locus was selected (Stacks output: "populations.snps.vcf"; using option: "--write-single-snp" in the populations module which restricts data analysis to only the first SNP per locus.)
+#3. MAF SNP dataset - selecting the SNP with the highest MAF per locus (Stacks output: "populations.snps.vcf")
+
+#RESULTS: The results indicated that the haplotype dataset was able to reveal the most structure, followed by the MAF SNP dataset and lastly the Random SNP dataset.
+
+#The allele count and frequency data was generated using VCFtools using standard Stacks Population module output - "populations.snps.vcf" - which gives all SNPs.
+
+#VCFtools code:
+#VCFtools cannot use both at once, so code will need to be run twice to get counts and frequency data.
+vcftools --vcf populations.snps.vcf --out allele_freq --counts/--freq
+
+allele_freq <- read.delim("/path/to/allele_freq.frq")
+allele_counts <- read.delim("/path/to/allele_counts.frq.count")
+allele_stats <- left_join(allele_freq, allele_counts)
+
+#Selecting the SNP with the highest MAF:
+allele_high_MAF <- allele_stats %>% group_by(CHROM) %>% filter(Minor_freq == max(Minor_freq)) %>% filter(row_number()==1)
+allele_high_MAF$SNP <- rep("MAF")
+#can always add MAF filter "%>% filter(Minor_freq > 0.01)" if want to filter at a set MAF before selecting SNPs.
+
+#For interest a comparison was made between the Random and MAF datasets.
+allele_first_SNP <- allele_stats
+allele_first_SNP <- separate(allele_first_SNP,col = 6, into = c("Minor_allele", "Minor_freq"), sep = ":",)
+allele_first_SNP$Minor_freq <- as.numeric(allele_first_SNP$Minor_freq)
+allele_first_SNP <- allele_first_SNP[,c(1,2,7)]
+allele_first_SNP <- allele_SD %>% group_by(CHROM) %>% filter(row_number()==1)
+allele_first_SNP$SNP <- rep("Random_SNP")
+
+#Identify the number of Random SNPs that are also the highest MAF SNP
+allele_compare <- inner_join(allele_high_MAF, allele_first_SNP)
+
+#Create the MAF dataset
+Highest_MAF <- tidy_genomic_data("/path/to/populations.snps.vcf", "/path/to/strata.tsv", parallel.core = 1, filter.common.markers = FALSE, filter.monomorphic = FALSE)
+#Note: Strata file is simple text file with INDIVIDUALS*tab*STRATA, with one individual per line with their associated location.
+Highest_MAF <- allele_stats %>% group_by(CHROM) %>% filter(Minor_freq == max(Minor_freq)) %>% filter(row_number()==1)
+Highest_MAF <- rename(Highest_MAF, LOCUS = CHROM)
+Highest_MAF$LOCUS <- as.character(Highest_MAF$LOCUS)
+Highest_MAF$POS <- as.character(Highest_MAF$POS)
+Highest_MAF <- Highest_MAF[,1:2]
+
+#read as delim
+Dataset <- read.delim("/path/to/populations.snps.vcf", comment.char = "#", header = FALSE)
+Dataset <- rename(Dataset, LOCUS = V1, POS = V2)
+Dataset$LOCUS <- as.character(Dataset$LOCUS)
+Dataset$POS <- as.character(Dataset$POS)
+MAF_vcf <- inner_join(Dataset, Highest_MAF)
+write.table(MAF_vcf, "/path/to/MAF_vcf", sep = "\t", quote = FALSE, row.names = FALSE)
+
+#Once this file has been written, the header still needs to be added - i.e., all the #comments that were ignored when reading the file into R must be put back. This can be done using very easily with a siimple copy and paste. Open MAF_vcf and "populations.snps.vcf" in, for example, Notepad++. Remove the first line from MAF_vcf and add the comments from populations.snps.vcf. The file can now be read by Radiator again.

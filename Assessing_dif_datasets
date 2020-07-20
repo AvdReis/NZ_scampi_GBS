@@ -1,7 +1,0 @@
-#In the manuscript we tested three different types of datasets composed from the original data.
-#1. Haplotype dataset
-#2. Random SNP dataset - in this case the first SNP on the locus
-#3. MAF SNP dataset - selecting the SNP with the highest MAF per locus
-
-#The results indicated that the haplotype dataset was able to reveal the most structure, followed by the MAF SNP dataset and lastly the Random SNP dataset.
-
