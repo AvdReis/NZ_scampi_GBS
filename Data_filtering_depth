@@ -40,32 +40,7 @@ HD_vcf_loci_rm <- HD_vcf
 HD_vcf_loci_rm <- anti_join(HD_vcf_loci_rm, FSD_loci, by = "LOCUS") #to make it comparable all 20 loci identified 2sds above the mean were removed versus HD_loci which were 19 inclusive in the 20
 HD_vcf_loci_rm <- anti_join(HD_vcf_loci_rm, SNP_rm_these, by = "LOCUS")
 
-#Check replicates for missing data amount
-write_structure(data = HD_vcf_loci_rm, filename = "replicates/HD_vcf_loci_rm")
 
-reps_SSD_str <- read.delim("replicates/HD_vcf_loci_rm.str", header=FALSE)
-reps_SSD_str <- reps_SSD_str[,c(1,3:985)]
-reps_SSD_str <- reps_SSD_str[2:175,]
-reps_SSD_str <- t(reps_SSD_str)
-colnames(reps_SSD_str) <- as.character(unlist(reps_SSD_str[1,]))
-reps_SSD_str <- as.data.frame(reps_SSD_str[2:984,])
-
-test <- reps_SSD_str[,107:110]
-test$no <- rep(1:983)
-test <- left_join(test, loci_no)
-
-#for some reason there was random spaces
-test <- apply(test, 2, function(x)gsub('\\s+', '',x))
-
-test <- as.data.frame(test)
-
-test$Missing <- if_else(test$WHOLEblue == -9 & test$WHOLEblue.1 == -9 & test$WHOLEred == -9 & test$WHOLEred.1 == -9, "Missing", "Results")
-filter(test, Missing == "Missing")
-#remove missing data - 2 loci
-test <- filter(test, Missing == "Results")
-
-test$SNPs <- if_else(test$WHOLEblue == test$WHOLEred & test$WHOLEblue.1 ==  test$WHOLEred.1 , "Same", "untested") #958 loci removed
-test <- filter(test, SNPs == "untested")
 
 test$SNPs <- if_else(test$WHOLEblue == -9 & test$WHOLEblue.1 == -9, "missing", "untested") 
 test <- filter(test, SNPs == "untested")
