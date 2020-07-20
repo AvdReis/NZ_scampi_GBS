@@ -1,0 +1,30 @@
+#Check replicates for missing data amount. This can be done with all datasets, but here is an example for the haplotype dataset.
+test_replicates <- tidy_genomic_data("/path/to/populations.haps.vcf", strata = "strata.tsv", parallel.core = 1, filter.common.markers = FALSE, filter.monomorphic = FALSE)
+
+#Structure format was used to compare replicates.
+write_structure(data = test_replicates, filename = "/path/to/write/file/replicate_test")
+
+rep_df <- read.delim("/path/to/write/file/replicate_test.str", header=FALSE)
+rep_df <- rep_df[,c(1,3:n)] #remove location column which is not needed. n=number of columns
+rep_df <- rep_df[2:n,] #remove header column. n=number of rows
+rep_df <- t(rep_df) #transpose the dataframe
+colnames(rep_df) <- as.character(unlist(rep_df[1,]))
+rep_df <- as.data.frame(rep_df[2:n,]) #remove individuals names from being the first row
+
+#here
+test <- reps_SSD_str[,107:110]
+test$no <- rep(1:983)
+test <- left_join(test, loci_no)
+
+#for some reason there was random spaces
+test <- apply(test, 2, function(x)gsub('\\s+', '',x))
+
+test <- as.data.frame(test)
+
+test$Missing <- if_else(test$WHOLEblue == -9 & test$WHOLEblue.1 == -9 & test$WHOLEred == -9 & test$WHOLEred.1 == -9, "Missing", "Results")
+filter(test, Missing == "Missing")
+#remove missing data - 2 loci
+test <- filter(test, Missing == "Results")
+
+test$SNPs <- if_else(test$WHOLEblue == test$WHOLEred & test$WHOLEblue.1 ==  test$WHOLEred.1 , "Same", "untested") #958 loci removed
+test <- filter(test, SNPs == "untested")
