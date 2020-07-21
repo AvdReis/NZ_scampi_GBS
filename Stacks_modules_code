@@ -65,4 +65,4 @@ gstacks -P ./stacks/ -M ./popmaps/populations.txt -t 8
 
 #POPULATIONS
 populations -P ../stacks/ -O ./stacks_pops/ -M ./popmaps/populations_QC.txt -r 0.8 -p 5 -t 8 --vcf #--write_single_snp for first SNP dataset to be written, different folder needs to be used otherwise it will overwrite snps file.
-#Individuals having less than 3,000 loci matched to the catalog were removed from the popmaps file - results from TSV2BAM. NB once replicates have been investigate POPULATIONS needs to be rerun with selected replicates only included.
+#Individuals having less than 3,000 loci matched to the catalog were removed from the popmaps file - results from TSV2BAM. NB once replicates have been investigate POPULATIONS needs to be rerun with selected replicates only included, which is then passed into VCFtools for depth stats etc...
