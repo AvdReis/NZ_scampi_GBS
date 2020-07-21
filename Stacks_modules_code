@@ -46,7 +46,7 @@ id=1
 for sample in $files
 do
 
-ustacks -t fastq -f ./samples/$sample.fq -o ./stacks/ -i $id --name $sample -m 5 -M 2 -p 8 #did prelim before choosing -m, -M and -p
+ustacks -t fastq -f ./samples/$sample.fq -o ./stacks/ -i $id --name $sample -m 5 -M 2 -p 8 #did prelim test before choosing -m
 
 let "id+=1"
 done
@@ -64,4 +64,5 @@ tsv2bam -P ./stacks/ -M ./popmaps/populations.txt -t 8
 gstacks -P ./stacks/ -M ./popmaps/populations.txt -t 8
 
 #POPULATIONS
-populations -P ../stacks/ -O ./stacks_pops/ -M ./popmaps/populations.txt -r 0.8 -p 5 -t 8 --vcf #--write_single_snp for first SNP dataset to be written, different folder needs to be used otherwise it will overwrite snps file.
+populations -P ../stacks/ -O ./stacks_pops/ -M ./popmaps/populations_QC.txt -r 0.8 -p 5 -t 8 --vcf #--write_single_snp for first SNP dataset to be written, different folder needs to be used otherwise it will overwrite snps file.
+#individuals having less than 3,000 loci matched to the catalog were removed from the popmaps file. At this stage the replicates not used should have been removed from the list already.
