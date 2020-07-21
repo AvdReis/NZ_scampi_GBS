@@ -1,0 +1,67 @@
+#http://catchenlab.life.illinois.edu/stacks/
+#Stacks 2.2
+
+#The modules USTACKS, CSTACKS and SSTACKS make up the core clustering algorithm (Catchen et al., 2013; Catchen et al., 2011; Rochette et al., 2019). In the USTACKS module the reads were aligned into stacks (m = 5) of identical reads. The stacks were then compared to form a set of loci (build loci de novo) from which SNPs were called (maximum likelihood framework; Hohenlohe et al., 2010) from each locus. The loci were then used to create a set of consensus loci, merging alleles together to assemble a catalog (CSTACKS). Each individual’s loci (USTACKS output) were then searched against the catalog (CSTACKS output) and matches were recorded (SSTACKS). The data were transposed in order to orientate by locus and not by sample (TSV2BAM). The GSTACKS module incorporates a maximum likelihood Bayesian genotype caller (Maruki & Lynch, 2015, 2017) to detect biallelic SNPs within loci (examined one at a time), taking into account the data from the entire metapopulation (Rochette et al., 2019). The implemented algorithm has a tractable statistical framework and does not assume Hardy-Weinberg, estimates unbiased site-specific allele frequencies, and error rates directly from the data (Maruki & Lynch, 2015, 2017). It also includes numerical stabilizations which prevent the error rate and genotyping frequencies estimates from being zero (Rochette et al., 2019). A Bayesian prior (support value for occurrence of each SNP) was fed into the model and each individual was genotyped separately. A high quality dataset was then constructed by; (1) removing individuals with low genotyping success (defined as individuals having less than 3,000 loci matched to the catalog), and, (2) ensuring only recurring loci were included, by selecting loci that were present in at least 80% of individuals in each SCI and present in all SCIs (POPULATIONS; r = 0.8; p = 5). The catalogue and genotyping of samples were undertaken on the same run.
+
+#PROCESS RADTAGS
+#single-end or paired-end, with an inline barcode present only on the single-end
+process_radtags \
+-i fastq \
+-f ../SQ0889_S6_L008_R1_001.fastq.gz \ #Can use zipped or unzipped file, obviously zipped saves space
+-b ../barcodes/barcodes_stacks.txt \ #barcode*tab*individual, each individual on a new line and no header
+-o ./samples/ \ #output folder
+--clean \
+--quality \
+--rescue \
+-t 75 \
+--len_limit 75\
+--inline_null \
+--renz_1 sbfI \
+--renz_2 mspI
+
+#USTACKS
+#To make this step quicker you can split the script in two (or more) and run the two scripts at the same time.
+#script 1:
+files="individual_a
+individual_b
+individual_c
+...
+individual_n"
+
+id=1
+for sample in $files
+do
+
+ustacks -t fastq -f ./samples/$sample.fq -o ./stacks/ -i $id --name $sample -m 5 -M 2 -p 8 #did prelim before choosing -m, -M and -p
+
+let "id+=1"
+done
+
+#Script 2:
+files="individual_n+1
+...
+individual_z"
+
+id=1
+for sample in $files
+do
+
+ustacks -t fastq -f ./samples/$sample.fq -o ./stacks/ -i $id --name $sample -m 5 -M 2 -p 8 #did prelim before choosing -m, -M and -p
+
+let "id+=1"
+done
+
+#CSTACKS
+cstacks -P ./stacks/ -M ./popmaps/populations.txt -n 1 -p 8 #.txt is a file with individual*tab*local_locations*tab*group_location with no headers and each individual on a new line
+
+#SSTACKS
+sstacks -P ./stacks/ -M ./popmaps/populations.txt -p 8
+
+#TSV2BAM
+tsv2bam -P ./stacks/ -M ./popmaps/populations.txt -t 8
+
+#GSTACKS
+gstacks -P ./stacks/ -M ./popmaps/populations.txt -t 8
+
+#POPULATIONS
+populations -P ../stacks/ -O ./stacks_pops/ -M ./popmaps/populations.txt -r 0.8 -p 5 -t 8 --vcf #--write_single_snp for first SNP dataset to be written, different folder needs to be used otherwise it will overwrite snps file.
