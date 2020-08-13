@@ -1,30 +1,54 @@
-#Check replicates for missing data amount. This can be done with all datasets, but here is an example for the haplotype dataset.
+library(radiator) #install package if need be
+
+#A strata.tsv file example:
+#INDIVIDUALS	STRATA
+#1	EastNZ
+#2	EastNZ
+#3	EastNZ
+#4	EastNZ
+#n  x
+
+#Check replicates for missing data
 test_replicates <- tidy_genomic_data("/path/to/populations.haps.vcf", strata = "strata.tsv", parallel.core = 1, filter.common.markers = FALSE, filter.monomorphic = FALSE)
 
-#Structure format was used to compare replicates.
+#Structure format was used to compare replicate
 write_structure(data = test_replicates, filename = "/path/to/write/file/replicate_test")
 
-rep_df <- read.delim("/path/to/write/file/replicate_test.str", header=FALSE)
-rep_df <- rep_df[,c(1,3:n)] #remove location column which is not needed. n=number of columns
-rep_df <- rep_df[2:n,] #remove header column. n=number of rows
-rep_df <- t(rep_df) #transpose the dataframe
-colnames(rep_df) <- as.character(unlist(rep_df[1,]))
+rep_df <- read.delim("/path/to/read/file/replicate_test.str", header=FALSE)
+rep_df <- rep_df[,c(1,3:n)] #remove location column which is not needed. n = number of columns
+rep_df <- rep_df[2:n,] #remove header column. n = number of rows
+rep_df <- t(rep_df) #transpose the dataframe as you want loci x indv
+colnames(rep_df) <- as.character(unlist(rep_df[1,])) #indvs become column names
 rep_df <- as.data.frame(rep_df[2:n,]) #remove individuals names from being the first row
 
-#here
-test <- reps_SSD_str[,107:110]
-test$no <- rep(1:983)
+#select the replicate columns either by number or name - e.g., c("a","aa")
+test <- reps_SSD_str[,a:c] #if using number
+
+#if you are needing to know which row is which loci
+loci_no <- unique(test_replicates$LOCUS) #pulls loci ID from original data
+loci_no <- as.data.frame(loci_no)
+loci_no$no <- rep(1:n) #n = number of rows
+test$no <- rep(1:n) #this is the same 'n' as the line above - n = number of rows 
 test <- left_join(test, loci_no)
 
-#for some reason there was random spaces
+#for some reason there was random spaces so I got rid of them - won't hurt to do this to your data even if you do not have random spaces
 test <- apply(test, 2, function(x)gsub('\\s+', '',x))
 
 test <- as.data.frame(test)
 
-test$Missing <- if_else(test$WHOLEblue == -9 & test$WHOLEblue.1 == -9 & test$WHOLEred == -9 & test$WHOLEred.1 == -9, "Missing", "Results")
-filter(test, Missing == "Missing")
-#remove missing data - 2 loci
-test <- filter(test, Missing == "Results")
+#-9 in the dataframe means that the genotype could not be called. Here the loci that contain missing data are identified.
+test$Missing <- if_else(test$rep1a == -9 & test$rep1a.1 == -9 & test$rep1b == -9 & test$rep1b.1 == -9, "Missing", "Results") #If loci was not genotyped
+filter(test, Missing == "Missing") #loci that were not called for either replicate
+test <- filter(test, Missing == "Results") #retain all loci that had results
 
-test$SNPs <- if_else(test$WHOLEblue == test$WHOLEred & test$WHOLEblue.1 ==  test$WHOLEred.1 , "Same", "untested") #958 loci removed
-test <- filter(test, SNPs == "untested")
+test$loci <- if_else(test$rep1a == test$rep1b & test$rep1a.1 == test$rep1b.1, "Same", "untested") #remove loci that had the same calls
+test <- filter(test, loci == "untested")
+
+test$loci <- if_else(test$rep1a == -9 & test$rep1a.1 == -9, "missing", "untested") #ID how many loci were not genotyped for rep1a and remove them
+test <- filter(test, loci == "untested") #record the number of loci that were not genotype for rep1a
+
+test$loci <- if_else(test$rep1b == -9 & test$rep1b.1 == -9, "missing", "untested") #ID how many loci were not genotyped for rep1b and remove them
+test <- filter(test, loci == "untested") #record the number of loci that were not genotype for rep1b
+
+#what now remains in test are the loci where the calls were different
+#the replicate with the higher number of loci that were not genotyped must then be excluded from further analyses
