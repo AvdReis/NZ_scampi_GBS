@@ -15,7 +15,7 @@ sd(as.numeric(Depth_site$MEAN_DEPTH))
 mean(as.numeric(Depth_site$MEAN_DEPTH))
 
 #identify loci which are 2SDs above the mean to be removed (rm)
-Loci_rm <- filter(Depth_site, MEAN_DEPTH > (mean(as.numeric(Depth_site$MEAN_DEPTH))+(2*sd(as.numeric(Depth_site$MEAN_DEPTH)))))
+SD_rm <- filter(Depth_site, MEAN_DEPTH > (mean(as.numeric(Depth_site$MEAN_DEPTH))+(2*sd(as.numeric(Depth_site$MEAN_DEPTH)))))
 
 #a plot for interest
 ggplot(Depth_site, aes(as.character(CHROM), as.numeric(MEAN_DEPTH))) +
@@ -24,8 +24,7 @@ ggplot(Depth_site, aes(as.character(CHROM), as.numeric(MEAN_DEPTH))) +
   geom_hline(yintercept = (mean(as.numeric(Depth_site$MEAN_DEPTH))+(2*sd(as.numeric(Depth_site$MEAN_DEPTH)))), color = "blue") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
   
-  
-HERE#calculate how many SNPs there are per loci
+#calculate how many SNPs there are per loci
 #if greater than 5 SNPs/loci then remove loci
 SNP_rm$count <- rep(1)
 SNP_rm$CHROM <- as.character(SNP_rm$CHROM)
@@ -34,20 +33,10 @@ SNP_rm <- aggregate(count~CHROM, SNP_rm, sum) #counts the number of SNPs per loc
 SNP_rm_these <- filter(SNP_rm, count > 5) #ID loci with more than 5 SNPS on them
 SNP_rm_these$LOCUS <- SNP_rm_these$CHROM
 
+#See if there are any loci that are 2SDs above the mean and fall into the category of having more than 5 SNPs
+semi_join(SD_rm, SNP_rm_these)
+
 #remove loci 2SDs > mean and loci w/ >5 SNPs from data
-HD_vcf <- tidy_genomic_data("populations.haps.vcf", strata = "strata.tsv", parallel.core = 1, filter.common.markers = FALSE, filter.monomorphic = FALSE)
-
-HD_vcf_loci_rm <- HD_vcf
-HD_vcf_loci_rm <- anti_join(HD_vcf_loci_rm, FSD_loci, by = "LOCUS") #to make it comparable all 20 loci identified 2sds above the mean were removed versus HD_loci which were 19 inclusive in the 20
-HD_vcf_loci_rm <- anti_join(HD_vcf_loci_rm, SNP_rm_these, by = "LOCUS")
-
-
-
-test$SNPs <- if_else(test$WHOLEblue == -9 & test$WHOLEblue.1 == -9, "missing", "untested") 
-test <- filter(test, SNPs == "untested")
-
-test$SNPs <- if_else(test$WHOLEred == -9 & test$WHOLEred.1 == -9, "missing", "untested") 
-test <- filter(test, SNPs == "untested")
-
-#REMOVE WHOLEred
-HD_vcf_loci_rm <- filter(HD_vcf_loci_rm, INDIVIDUALS != "WHOLEred")
+loci_filtered_df <- tidy_genomic_data("populations.haps.vcf", strata = "strata.tsv", parallel.core = 1, filter.common.markers = FALSE, filter.monomorphic = FALSE)
+loci_filtered_df <- anti_join(loci_filtered_df, SD_rm, by = "LOCUS")
+loci_filtered_df <- anti_join(loci_filtered_df, SNP_rm_these, by = "LOCUS")
