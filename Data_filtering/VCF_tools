@@ -1,0 +1,17 @@
+#The results presented in the article are given once QC reps have been assessed and only QC rep with highest retained for further analysis.
+#Can't do two functions at a time, for example, running --missing-indv and --missing-site on the same line.
+
+#VCFtools v0.1.14
+
+missing data for both individuals and SNP sites, allele counts and frequencies, and sequencing depth per SNP site
+
+#missing data for individuals and SNP sites
+vcftools --vcf ./VCFtools_results/populations.snps.vcf --out ./VCFtools_results/Indv_missingness --missing-indv
+vcftools --vcf ./VCFtools_results/populations.snps.vcf --out ./VCFtools_results/Site_missingness --missing-site
+
+#allele counts or frequencies
+vcftools --vcf ./VCFtools_results/populations.snps.vcf --out ./VCFtools_results/allele_counts --counts
+vcftools --vcf ./VCFtools_results/populations.snps.vcf --out ./VCFtools_results/allele_freq --freq
+
+#Sequencing depth per SNP site
+vcftools --vcf ./VCFtools_results/populations.snps.vcf --out ./VCFtools_results/loci_depth  --site-mean-depth
