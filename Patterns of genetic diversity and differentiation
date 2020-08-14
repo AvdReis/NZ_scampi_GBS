@@ -23,7 +23,7 @@ library(StAMPP)
 library(poppr)
 library(DECIPHER)
 
-####Genetic diversity statistics####
+####GENETIC DIVERSITY STATISTICS####
 
 #here we are using the dataset that has been filtered
 #loci_filtered_df - end product of Loci_depth_filtering in Data_filtering folder
@@ -54,35 +54,17 @@ Ar <- aggregate(Ar~Area, Ar, mean)
 #Pi - nucleotide diversity#
 
 #nucleotide diversity - data from Stacks (populations.sumstats.tsv) - NB replicate removed prior to running populations again, this can just be done by removing the indiviual from the population file
-populations.sumstats <- read.delim("~/AKL_UNI/GBS/haplotypes/stacks_haplotypes_tsv/nucleo_hap_diversity/populations.sumstats.tsv", comment.char="#")
+
+populations.sumstats <- read.delim("/path/to/file/populations.sumstats.tsv", comment.char="#")
 
 populations.sumstats <- rename(populations.sumstats, LOCUS = Locus.ID, POS = Col)
-populations.sumstats$LOCUS <- as.character(populations.sumstats$LOCUS)
-populations.sumstats$POS <- populations.sumstats$POS +1 
-populations.sumstats$POS <- as.character(populations.sumstats$POS)
+populations.sumstats$LOCUS <- as.character(populations.sumstats$LOCUS) #need loci to be read as character
+populations.sumstats$POS <- populations.sumstats$POS +1 #To correct the POS need at add 1 is using SNP data
+populations.sumstats$POS <- as.character(populations.sumstats$POS) #need SNP position to be read as character
 
-#options: HD_vcf_loci_rm  FSD_vcf_loci_rm MSD_vcf_loci_rm
+Pi <- semi_join(populations.sumstats, loci_filtered_df, by = LOCUS) #select only those loci common between the dataframes and remove 'by = LOCUS' is using SNP data
 
-#including SCI_E and SCI_SW
-cluster_seven <- MSD_vcf_loci_rm
-SCI_E <- filter(MSD_vcf_loci_rm, POP_ID != "West_Coast" & POP_ID != "Auckland_Islands")
-SCI_E$POP_ID <- rep("SCI_E")
-SCI_SW <- filter(MSD_vcf_loci_rm, POP_ID != "East_LNI" & POP_ID != "East_UNI"& POP_ID != "Chatham_Rise")
-SCI_SW$POP_ID <- rep("SCI_SW")
+mean_Pi <- aggregate(Pi~Pop.ID, Pi, mean) #If the sum is taken you get the haplotype diversity
 
-cluster_seven <- rbind(cluster_seven, SCI_E, SCI_SW)
+####GENETIC DIFFERENTIATION####
 
-diversity <- semi_join(populations.sumstats, cluster_seven) # put in by LOCUS for HD ONLY!!!
-
-#east as one group
-East <- filter(diversity, Pop.ID != "West_Coast" & Pop.ID != "Auckland_Islands")
-East$Pop.ID <- rep("East")
-
-mean_Pi_pop <- aggregate(Pi~Pop.ID, East, mean)
-
-#summary_stats$Pi$HD <- mean_Pi_pop
-#summary_stats$Pi$FSD <- mean_Pi_pop
-#summary_stats$Pi$MSD <- mean_Pi_pop
-
-#haplotype diversity
-#aggregate(Pi~Locus.ID+Pop.ID, populations.sumstats, sum)
