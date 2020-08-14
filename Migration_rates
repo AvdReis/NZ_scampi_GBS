@@ -1,0 +1,70 @@
+####PACKAGES####
+library(radiator)
+library(diveRsity)
+
+####TEMPORAL AND SPATIAL STRUCTURE####
+
+#Bayesass#
+#please note that this was not run in R, but making the input data was
+#note that the haplotypic data cannot be used here and so one random SNP was selected
+
+rndm_SNP <- tidy_genomic_data("./populations.snps.vcf", "./strata.tsv", parallel.core = 1, filter.common.markers = FALSE, filter.monomorphic = FALSE)
+
+#need to get markers and locus and number SNPs so can then remove chromosomes
+rndm_SNP$no_SNP <- rep(1:2499) #SNP number
+rndm_SNP <- semi_join(rndm_SNP, loci_filtered_df, by = "LOCUS")
+
+#group by locus and choose random snp
+BA_rndm <- rndm_SNP
+BA_rndm <- BA_rndm %>% group_by(LOCUS) %>% sample_n(size = 1)
+
+
+#take output from PGD that converted populations.snps.vcf ti immanc
+PGD_output <- read.delim("./BA3/test_vcf_all.txt", header = F)
+
+PGD_output$sep <- PGD_output$V3
+PGD_output <- separate(PGD_output, 6, c("rm", "no_SNP"), sep = "_")
+PGD_output <- PGD_output[,-6]
+
+PGD_output$sep <- PGD_output$V1
+PGD_output <- separate(PGD_output, 7, c("SCI", "rm"), sep = "([\\.])")
+PGD_output <- PGD_output[,-8]
+
+#rm wholered
+PGD_output <- filter(PGD_output, SCI != "WHOLEred")
+
+#pops
+PGD_output$SCI <- gsub("02", "Pop_2", PGD_output$SCI)
+PGD_output$SCI <- gsub("01", "Pop_2", PGD_output$SCI)
+PGD_output$SCI <- gsub("03", "Pop_1", PGD_output$SCI)
+PGD_output$SCI <- gsub("04", "Pop_1", PGD_output$SCI)
+PGD_output$SCI <- gsub("269", "Pop_6", PGD_output$SCI)
+PGD_output$SCI <- gsub("299", "Pop_6", PGD_output$SCI)
+PGD_output$SCI <- gsub("257", "Pop_3", PGD_output$SCI)
+PGD_output$SCI <- gsub("247", "Pop_3", PGD_output$SCI)
+PGD_output$SCI <- gsub("WC1", "Pop_7", PGD_output$SCI)
+PGD_output$SCI <- gsub("WC2", "Pop_7", PGD_output$SCI)
+PGD_output$SCI <- gsub("WHOLEblue", "Pop_7", PGD_output$SCI)
+PGD_output$SCI <- gsub("HALFred", "Pop_7", PGD_output$SCI)
+
+PGD_output$no_SNP <- as.numeric(PGD_output$no_SNP)
+PGD_output <- semi_join(PGD_output, BA_rndm, by = "no_SNP")
+
+head(PGD_output)
+
+PGD_output <- PGD_output[,c(1,7,3,4,5)]
+
+PGD_output$V1 <- gsub("([\\.])", "_", PGD_output$V1)
+
+write.table(PGD_output, file = "./BA3/rndm_SNP.txt", sep = "\t",
+            row.names = F, col.names = F)
+
+
+#BA3 v 3.0.4 - not run in R
+#Parameters - a, f and m - were adjusted in order to maintain acceptable rates (between 20% and 60%) and to allow for sufficient chain mixing.
+../BA3SNP -u -v -g -t -a 0.55 -f 0.3 -m 0.35 -i 10000000 -b 1000000 -n 1000 -s 106454 -o ./s106454_output.txt ./input_s106454_3.txt
+
+#Divmigrate#
+write_genepop(loci_filtered_df, filename = "./path/to/save/DM")
+#doing a 1000 or 10000 gave the exact same results!
+DM <- divMigrate("./path/to/file/DM_genepop.gen", boots = 1000, stat = "d", plot_network = T)
