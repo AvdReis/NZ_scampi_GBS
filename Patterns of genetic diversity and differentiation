@@ -98,4 +98,68 @@ poppr_signif   <- randtest(poppr.amova, nrepet = 100000) #p.adjust.method = "bon
 
 ####GENETIC CLUSTERING####
 
+#DAPC#
+DAPC <- write_genind(loci_filtered_df)
 
+mycol = col_choice = brewer.pal(5, "Dark2")
+
+dapc1 <- dapc(DAPC, DAPC$pop, n.pca = 3, n.da = 2) #CHANGE PCs and 2 DFs - PCs graph and DFs
+ 
+scatter(dapc1, col = mycol, cex = 2, legend = TRUE, clabel = F, posi.leg = "topright", scree.pca = TRUE,
+        posi.pca = "topleft", posi.da = "bottomleft", cleg = 0.75)
+        
+#if want to get a structure-like plot using LEA#
+write_structure(loci_filtered_df, parallel.core = 1, filename = "./structure")
+
+structure <- read.delim("./structure.str", header=FALSE) #for some reason still keeping the header
+str_df <- structure[2:173,] #remove header
+
+str_df <- rename(str_df, "Individual" = "V1")
+str_df$Individual <- as.character(str_df$Individual)
+
+#prepare coordinate file (e.g., coords) where you have the individual's and the long and lat of their collection location and location name, and join to str_df
+coords_str <- left_join(str_df, coords, by = "Individual")
+
+#Need to bring Long and Lat to columns 1 and 2 for correct formatting of .str df. Remove column one that contains the names of the individuals.
+coords_str <- coords_str[,c(986, 987, 2:985)] #these numbers will change depending on your data - c(long, lat, loci_1:loci_n)
+
+write.table(coords_str, "./coords_str.str", sep="\t", row.names = FALSE, col.names = FALSE)
+
+input.file = "./coords_str.str"
+
+snmf <- struct2geno(input.file, ploidy = 2, FORMAT = 2, extra.row = 0, extra.column = 3) #return output file in console
+
+#choose K values to investigate - e.g., K = 1:5
+obj.snmf = snmf("coords_str.str.geno", K = 1:5, project = "new", repetitions = 100, CPU = 1, alpha = 200, tolerance = 0.00001, entropy = T, percentage = 0.05, iterations = 500, ploidy = 2, seed = 10)
+
+plot(obj.snmf, col = "blue4", cex = 1.4, pch = 19) #ID best K value
+
+#in this case K = 2 was the best value
+best = which.min(cross.entropy(obj.snmf, K = 2))
+
+qmatrix = Q(obj.snmf, K = 2, run = best)
+
+#now need to get individuals name back and as df maintains same order they can just be pulled out again
+idv_names <- structure[2:173,1]
+idv_names <- unique(idv_names)
+idv_names <- as.data.frame(idv_names)
+idv_names$no <- as.character(rep(1:86))
+
+qmat_df <- as.data.frame(qmatrix)
+qmat_df$no <- row.names(qmat_df)
+
+join <- left_join(qmat_df, idv_names)
+
+names(join) <- c("Group1", "Group2", "no", "ind") #add as many groups as there are best K values
+
+struc <- melt(join, id.vars=3:4) #id.vars needs to match "no" and "ind" columns
+#can add locations using left join and df coords, and join by individuals. This will allow you to plot by location if you would like.
+
+Set1 <- brewer.pal(8, "Set1")
+
+ggplot(struc, aes(ind, value, fill = variable)) +
+  geom_bar(stat = "identity") +
+  scale_fill_brewer(palette = "Set1") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
+  xlab("Individual") +
+  ylab("Admixture coefficients")
