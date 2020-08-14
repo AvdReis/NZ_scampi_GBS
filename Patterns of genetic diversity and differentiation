@@ -1,0 +1,88 @@
+####PACKAGES####
+library(readxl)
+library(xlsx)
+library(dplyr)
+library(radiator)
+library(ggplot2)
+library(RColorBrewer)
+library(mapplots)
+library(fields)
+library(LEA) #BiocManager::install(c("LEA"))
+library(adegenet)
+library(reshape2)
+library(hierfstat)
+library(ape)
+library(pcadapt)
+library(OutFLANK) #devtools::install_github("StoreyLab/qvalue") AND THEN devtools::install_github("whitlock/OutFLANK")
+library(genepop)
+library(strataG)
+library(tidyr)
+library(stackr) #devtools::install_github("thierrygosselin/stackr")
+library(igraph)
+library(StAMPP)
+library(poppr)
+library(DECIPHER)
+
+####Genetic diversity statistics####
+
+#here we are using the dataset that has been filtered
+#loci_filtered_df - end product of Loci_depth_filtering in Data_filtering folder
+
+#Ho, He and Fis#
+hierf <- write_hierfstat(loci_filtered_df) #convert dataframe to hierfstat structure
+
+hierf_stats <- basic.stats(hierf) #retrieve Ho, Hs and Fis from data
+
+hierf_Ho <- as.data.frame(hierf_stats[["Ho"]])
+hierf_Hs <- as.data.frame(hierf_stats[["Hs"]])
+hierf_Fis <- as.data.frame(hierf_stats[["Fis"]])
+
+#calculate the mean per area
+hierf_Ho_mean <- hierf_Ho %>% gather("Area", "Ho", 1:5) %>% group_by(Area) %>% summarise(mean = mean(Ho)) %>% spread(1, 2, 2)
+hierf_Hs_mean <- hierf_Hs %>% gather("Area", "Hs", 1:5) %>% group_by(Area) %>% summarise(mean = mean(Hs)) %>% spread(1, 2, 2)
+hierf_Fis_mean <- hierf_Fis %>% gather("Area", "Fis", 1:5) %>% filter(Fis != "NaN") %>% group_by(Area) %>% summarise(mean = mean(Fis)) %>% spread(1, 2, 2)
+
+Summary_table <- rbind(hierf_Ho_mean, hierf_Hs_mean, hierf_Fis_mean)
+
+#Ar - allelic richness#
+
+Ar <- allelic.richness(hierf,min.n=NULL,diploid=TRUE)
+Ar <- as.data.frame(Ar$Ar)
+Ar <- gather(Ar, "Area", "Ar", 1:n) #n = columns to gather
+Ar <- aggregate(Ar~Area, Ar, mean)
+
+#Pi - nucleotide diversity#
+
+#nucleotide diversity - data from Stacks (populations.sumstats.tsv) - NB replicate removed prior to running populations again, this can just be done by removing the indiviual from the population file
+populations.sumstats <- read.delim("~/AKL_UNI/GBS/haplotypes/stacks_haplotypes_tsv/nucleo_hap_diversity/populations.sumstats.tsv", comment.char="#")
+
+populations.sumstats <- rename(populations.sumstats, LOCUS = Locus.ID, POS = Col)
+populations.sumstats$LOCUS <- as.character(populations.sumstats$LOCUS)
+populations.sumstats$POS <- populations.sumstats$POS +1 
+populations.sumstats$POS <- as.character(populations.sumstats$POS)
+
+#options: HD_vcf_loci_rm  FSD_vcf_loci_rm MSD_vcf_loci_rm
+
+#including SCI_E and SCI_SW
+cluster_seven <- MSD_vcf_loci_rm
+SCI_E <- filter(MSD_vcf_loci_rm, POP_ID != "West_Coast" & POP_ID != "Auckland_Islands")
+SCI_E$POP_ID <- rep("SCI_E")
+SCI_SW <- filter(MSD_vcf_loci_rm, POP_ID != "East_LNI" & POP_ID != "East_UNI"& POP_ID != "Chatham_Rise")
+SCI_SW$POP_ID <- rep("SCI_SW")
+
+cluster_seven <- rbind(cluster_seven, SCI_E, SCI_SW)
+
+diversity <- semi_join(populations.sumstats, cluster_seven) # put in by LOCUS for HD ONLY!!!
+
+#east as one group
+East <- filter(diversity, Pop.ID != "West_Coast" & Pop.ID != "Auckland_Islands")
+East$Pop.ID <- rep("East")
+
+mean_Pi_pop <- aggregate(Pi~Pop.ID, East, mean)
+
+#summary_stats$Pi$HD <- mean_Pi_pop
+#summary_stats$Pi$FSD <- mean_Pi_pop
+#summary_stats$Pi$MSD <- mean_Pi_pop
+
+#haplotype diversity
+#aggregate(Pi~Locus.ID+Pop.ID, populations.sumstats, sum)
