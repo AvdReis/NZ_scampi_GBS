@@ -68,3 +68,34 @@ mean_Pi <- aggregate(Pi~Pop.ID, Pi, mean) #If the sum is taken you get the haplo
 
 ####GENETIC DIFFERENTIATION####
 
+#Fst#
+
+Strata <- write_gtypes(loci_filtered_df)
+StrataFst <- popStructTest(Strata, nrep = 100000, stats = "fst", type = "both", keep.null = FALSE, quietly = FALSE, max.cores = NULL)
+
+#extract p-values and adjust
+p.adjust(pvalue/s,method="fdr") #this can be done manually typing pvalues in or making an adjust pvalue column
+
+#AMOVA#
+
+poppr <- write_genind(loci_filtered_df)
+
+#a way to define population hierarchy if needed - as an example
+population_hierarchy <- c()
+#note that this order is dependant on the order of your individuals in your data
+population_hierarchy$Pop <- as.character(c(rep("state1", no_indv), rep("state2", no_indv), rep("state3", no_indv), rep("state1", no_indv), rep("state3", no_indv)))
+population_hierarchy$Subpop <- as.character(c(rep("location_w/i_state1", no_indv), rep("location_w/i_state2", no_indv), rep("location_w/i_state3", no_indv), rep("location_w/i_state1", no_indv), rep("location_w/i_state3", no_indv)))
+population_hierarchy <- as.data.frame(population_hierarchy)
+
+#adding this info back into the poppr dataframe that was created
+poppr$other$population_hierarchy <- population_hierarchy
+strata(poppr) <- data.frame(other(poppr)$population_hierarchy)
+
+poppr.gen <- as.genclone(poppr) #convert to genclone
+poppr.amova <- poppr.amova(poppr.gen, hier = ~Pop, missing = "ignore", cutoff = "ignore", method = "ade4", clonecorrect = FALSE, within = FALSE, dist = NULL, squared = FALSE, freq = TRUE, correction = "quasieuclid", sep = "_", filter = FALSE, threshold = 0, algorithm = "farthest_neighbor", threads = 1L, quiet = FALSE)
+set.seed(1000)
+poppr_signif   <- randtest(poppr.amova, nrepet = 100000) #p.adjust.method = "bonferroni" only if using hierarchical populations
+
+####GENETIC CLUSTERING####
+
+
