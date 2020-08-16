@@ -70,7 +70,7 @@ missing$col <- missing$rep.1.n.
 missing <- anti_join(missing, start_data) #ID particles that never became active
 #lat[, 36756] #some particles just never started 
 
-#################################################################################################
+#=======================================================================================================================#
 #Not all particles were released within their defined boxes and this section is specifically for this articles which can be adapted for your own work
 #As best possible all particles were assigned to a release location (fishery management unit) dependant on geographic coordinates
 
@@ -93,19 +93,19 @@ start_data <- rbind(not_CR_LNI, CR_LNI)
 start_data$start_location <- if_else(start_data$start_location == "LNI", "CR", start_data$start_location)
 
 table(start_data$status, start_data$start_location)
-#################################################################################################
+#=======================================================================================================================#
 
-#identifying row and column where 'caught' is
-rnc_end <- which(m1==3, arr.ind=TRUE)
+#identifying row and column where 'caught' is, as these are the particles that are most interesting
+rnc_end <- which(m1==3, arr.ind=TRUE) #may not be assigned to '3' as caught
 
 end_data <- as.data.frame(rnc_end)
 
 end_data$lat_f <- lat[rnc_end]
 end_data$lon_f <- lon[rnc_end]
 
-#end_data$lon_f <- 180 + (180 - (end_data$lon_f * -1))
+#end_data$lon_f <- 180 + (180 - (end_data$lon_f * -1)) #specifically for my data
 
-end_data$status <- rep(2)
+end_data$status <- rep(3) #may not be assigned to '3'
 
 #join data together
 #this way can check stats
@@ -114,7 +114,74 @@ start_end_data <- left_join(end_data, start_data,  by = "col")
 table(start_end_data$start_location, start_end_data$status.y)
 
 random_pick <- start_end_data %>% group_by(start_location) %>% sample_n(5)
-#random_pick <- filter(random_pick, start_location != "OTHER")
+
+##########################################################################################
+####MAKE A MOVING MAP####
+#this cool R package animates your particles path, but required quite a bit of tweaking to get the correct input df
+library(moveVis)
+
+All_random_pick <- start_data %>% group_by(start_location) %>% sample_n(100) #choosing 100 particles
+#could use start_end_data if wanted to have only those particles that were caught
+
+location_A <- filter(All_random_pick, start_location == "location_A") #here I am interested in all particles that started from a specific location - making the viewing easier
+
+#extracting the latitude path
+caught_lat <- as.data.frame(lat[,location_A$col])
+path_caught_lat <- gather(caught_lat, key = V, "latitude_path") #making one large df
+path_caught_lat <- filter(path_caught_lat, latitude_path < 0)
+
+#extracting the longitude path
+caught_lon <- as.data.frame(lon[,WC$col])
+path_caught_lon <- gather(caught_lon, key = V, "longitude_path")
+path_caught_lon <- filter(path_caught_lon, longitude_path < 200) #making one large df
+
+path_data <- cbind(path_caught_lat, path_caught_lon)
+path_data <- path_data[,c(2, 4, 1)]
+
+#bind columns together separated by ';'
+path_data$join <- paste(path_data$latitude_path, path_data$longitude_path, sep = ";")
+
+test <- path_data %>% group_by(V) %>% mutate(observation = 1:n())
+test <- test[,c(5,3,4)] #reordering columns
+
+y <- pivot_wider(test, names_from = V, values_from = join)
+
+x <- pivot_longer(y, 2:101, names_to = "V")
+
+a <- x %>% group_by(V) %>% mutate(y4=zoo::na.locf(value))
+
+b <- a[,c(1,2,4)]
+
+c <- pivot_wider(b, names_from = V, values_from = y4) 
+#c <- c[1:n,] #can shorten number of rows two the average rows per column
+
+#need to have the correct timestamp format
+c$timestamp <- as.POSIXct("2016-01-01 00:00:00") + sort(sample(1:n)) #n = number of rows
+
+d <- pivot_longer(c, 2:101, names_to = "V")
+d <- separate(d, 4, c("x", "y"), sep = ";")
+
+d$x <- as.numeric(d$x)
+d$y <- as.numeric(d$y)
+
+#to maintain in working box for New Zealand maps
+d$x.1 <- if_else(d$y < 0, 179, d$y)
+
+e <- d[,c(4,6,2,3)]
+str(e)
+e <- df2move(e, proj = "+init=epsg:4326 +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0", x = "x.1", y = "x", time = "timestamp", track_id = "V")
+
+frames <- frames_spatial(e, path_colours = NA,
+                         map_service = "osm", map_type = "watercolor", alpha = 0.5, path_legend = F, path_size = 2)
+
+length(frames) # number of frames
+frames[[2]] #quick check
+
+animate_frames(frames, out_file = "./path/to/save/particle_movement_movie.mov", overwrite = T, fps = 7) #.gif takes longer
+##########################################################################################
+
+
+
 
 #plot a few random that got caught
 caught_lat <- as.data.frame(lat[,random_pick$col])
