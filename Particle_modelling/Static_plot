@@ -1,0 +1,48 @@
+####PACKAGES####
+library(ggplot2)
+library(mapdata)
+library(mapproj)
+library(marmap)
+
+#PLOT A STATIC MAP#
+
+#great tutorial on plotting with R - https://hansenjohnson.org/post/bathymetric-maps-in-r/
+
+#could always add bathymetry
+#Full NZ Map with points lon 155-180 and -180 to -165
+#Issue with NZ: Longitudes should have values between -180 and +180 - so map splits in half if wanting to add contours
+#NZMap <- getNOAA.bathy(lon1 = 155, lon2 = 180, lat1 = -30, lat2 = -55, resolution = 4)
+
+# get regional polygons
+reg = map_data("world2Hires")
+#unique(reg$region)
+reg = subset(reg, region %in% c('New Zealand'))
+
+# set map limits
+#Using map_data can extend past 180 and would just need to convert coords in df e to suit
+#see d$x.1 <- if_else(d$y < 0, 179, d$y) above
+lons = c(155, 180)
+lats = c(-30, -55)
+
+# make plot
+ggplot()+
+  
+# add coastline
+geom_polygon(data = reg, aes(x = long, y = lat, group = group), 
+               fill = "darkgrey", color = NA) +
+# add line
+geom_path(data = e, aes(x = x.1, y = x, group = V),
+          colour = "black", alpha = 1, size=0.3)+
+  
+# add points
+geom_point(data = e, aes(x = x.1, y = x),
+             colour = "black", fill = "grey", 
+             stroke = .5, size = 2, 
+             alpha = 1, shape = 21) +
+  
+# configure projection and plot domain
+coord_map(xlim = lons, ylim = lats)+
+  
+# formatting
+ylab("")+xlab("")+
+  theme_bw()
