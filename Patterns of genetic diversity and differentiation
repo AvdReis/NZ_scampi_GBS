@@ -23,6 +23,7 @@ library(StAMPP)
 library(poppr)
 library(DECIPHER)
 
+#------------------------------------------------------------------------------------------#
 ####GENETIC DIVERSITY STATISTICS####
 
 #here we are using the dataset that has been filtered
@@ -66,6 +67,7 @@ Pi <- semi_join(populations.sumstats, loci_filtered_df, by = LOCUS) #select only
 
 mean_Pi <- aggregate(Pi~Pop.ID, Pi, mean) #If the sum is taken you get the haplotype diversity
 
+#------------------------------------------------------------------------------------------#
 ####GENETIC DIFFERENTIATION####
 
 #Fst#
@@ -96,6 +98,7 @@ poppr.amova <- poppr.amova(poppr.gen, hier = ~Pop, missing = "ignore", cutoff = 
 set.seed(1000)
 poppr_signif   <- randtest(poppr.amova, nrepet = 100000) #p.adjust.method = "bonferroni" only if using hierarchical populations
 
+#------------------------------------------------------------------------------------------#
 ####GENETIC CLUSTERING####
 
 #DAPC#
@@ -163,3 +166,91 @@ ggplot(struc, aes(ind, value, fill = variable)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)) +
   xlab("Individual") +
   ylab("Admixture coefficients")
+
+#------------------------------------------------------------------------------------------#
+####OUTLIER DETECTION####
+
+#---BAYESCAN---#
+#write Bayescan file - for some reason can't easily run radiators write_bayescan and takes a much longer than hierfstat does to convert the file.
+
+write.bayescan(hierf, diploid = T, fn = "./path/to/save/BS_outliers_input")
+
+#ran bayescan v 2.1 using the desktop app
+#Default parameters were kept except for prior odds parameter was increased to 100 in order to try and eliminate false positives
+#analyse results in R
+Bayescan_results_fst <- read.csv("./path/to/file/BS_outliers_output.txt", sep="")
+  
+#filter for outliers qvalue < 0.1
+Bayescan_results_fst$no <- rep(1:983)
+Bayescan_results_fst <- filter(Bayescan_results_fst, qval < 0.1)
+outliers_ref_vcf_BS <- left_join(Bayescan_results_fst, loci_no)
+outliers_ref_vcf_BS$Bayescan <- rep("YES")
+
+#---OUTFLANK---#
+#tutorial https://adnguyen.github.io/2017_Ecological_Genomics/Tutorial/2017-04-03_OUTFLANK-yourself.html
+
+#have previously already converted files to .geno for STRUCTURE analyses
+ssw.geno.in<-read.fwf("./path/to/coords_str.str.geno",width=rep(1,86))
+ssw.geno<-t(ssw.geno.in)
+
+OF_SNPs<-MakeDiploidFSTMat(ssw.geno,locusNames=as.list(loci_no$loci_no),popNames=as.list(strata.tsv$STRATA)) #use strata file to get individual population assignments
+
+OF_out<-OutFLANK(FstDataFrame = OF_SNPs,NumberOfSamples = n,qthreshold=0.1) #number of samples - The number of spatial locations included in the data set
+
+OutFlank_outliers <- as.data.frame(OF_out$results)
+OutFlank_outliers <- filter(OutFlank_outliers, qvalues <0.1)
+OutFlank_outliers <- rename(loci_no = LocusName, OutFlank_outliers)
+OutFlank_outliers$OutFlank <- rep("YES")
+
+#---LEA---#
+#LEA outlier detection can be used for multiallelic data
+best = which.min(cross.entropy(obj.snmf, K = 2)) #Remember K could change with different datasets
+p.val.snmf <- snmf.pvalues(obj.snmf, entropy = TRUE, ploidy = 2, K = 2, run = best, genomic.control = TRUE)
+plot(-log10(p.val.snmf$pvalues), pch = 19, col = "blue", cex = .7)
+p.val.snmf <- as.data.frame(p.val.snmf)
+p.val.snmf$qval <- qvalue(p.val.snmf$pvalues)$qvalue
+p.val.snmf$no <- rep(1:983)
+
+#ID which loci are detected as outliers
+loci_no <- unique(loci_filtered_df$LOCUS)
+loci_no <- as.data.frame(loci_no)
+loci_no$no <- rep(1:983)
+
+snmf_outliers <- left_join(p.val.snmf, loci_no)
+snmf_outliers <- filter(snmf_outliers, qval < 0.1)
+snmf_outliers$LEA <- rep("YES")
+
+#---DAPC---#
+
+#Loadingplot for DAPC
+dapc.LP <- dapc(DAPC, n.pca=3,n.da=2)
+
+loadingplot(dapc.LP$var.contr, axis=1, thres=.005, lab.jitter=1) 
+
+DAPC_loci_LP <- as.data.frame(dapc.LP$var.contr)
+DAPC_loci_LP$loci_names <- row.names(DAPC_loci_LP)
+DAPC_loci_LP <- filter(DAPC_loci_LP, LD1 > 0.009)
+
+#---summarize outliers obtained from packages---#
+#DAPC needs the most prep to get a comparable dataframe
+DAPC_outliers <- as.data.frame(DAPC_loci_LP)
+DAPC_outliers$loci_names <- rownames(DAPC_outliers)
+DAPC_outliers <- filter(DAPC_outliers, LD1 > 0.009)
+DAPC_outliers <- DAPC_outliers %>% separate(loci_names, into  = c("loci_no", "END"), sep = "[.]") 
+DAPC_outliers$loci_no <- gsub("^1__",'',DAPC_outliers$loci_no)
+DAPC_outliers$loci_no <- gsub("__\\d+",'',DAPC_outliers$loci_no)
+#DAPC_outliers$loci_no <- gsub("[.]\\d+",'',DAPC_outliers$loci_no)
+DAPC_outliers$adegenet <- rep("YES")
+DAPC_outliers <- DAPC_outliers[,c("loci_no", "adegenet")]
+DAPC_outliers <- unique(DAPC_outliers)
+
+snmf_outliers <- snmf_outliers[,5:6] 
+
+outliers_ref_vcf_BS <- outliers_ref_vcf_BS[7:8]
+
+OutFlank_outliers <- OutFlank_outliers[,c("loci_no", "OutFlank")]
+
+#compare them
+outliers <- full_join(DAPC_outliers, snmf_outliers, by = "loci_no")
+outliers <- full_join(outliers, outliers_ref_vcf_BS)
+outliers <- full_join(outliers, OutFlank_outliers)
