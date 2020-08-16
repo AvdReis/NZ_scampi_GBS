@@ -1,0 +1,424 @@
+#PACKAGES#
+library(dplyr)
+library(tidyr)
+library(ncdf4)
+library(marmap)
+library(ggplot2)
+
+#load raw data
+matlab <- "C:/path/to/data/particle_modelling.nc"
+
+#open a netCDF file
+ncin <- nc_open(matlab)
+print(ncin)
+
+#get longitude
+lon <- ncvar_get(ncin,"lon")
+dim(lon)
+
+#get latitude
+lat <- ncvar_get(ncin,"lat")
+dim(lat)
+
+#depending how the different status' were defined - 0: active particle, 1: particle left the domain, 2: particle is onland, 3: particle has been caught
+status <- ncvar_get(ncin,"status")
+dim(status)
+
+#status
+m1 <- as.matrix(status)
+
+no_col <- as.data.frame(rep(1:n)) #this will very with the size of your dataframe
+no_col$col <- no_col$`rep(1:n)` 
+
+#Extract particles that had status 1
+no_one <- as.data.frame(which(m1==1, arr.ind=TRUE))
+
+#Extract particles that had status 2
+no_two <- as.data.frame(which(m1==2, arr.ind=TRUE))
+
+#Extract particles that had status 3
+no_three <- as.data.frame(which(m1==3, arr.ind=TRUE))
+
+#Extract particles that are still active or did not start - ensuring all particles are accounted for!
+no_zero <- anti_join(no_col, no_one)
+no_zero <- anti_join(no_zero, no_two)
+no_zero <- anti_join(no_zero, no_three)
+#could look to ID which are still active if interested
+zero <- semi_join(m1, no_zero) 
+zero <- as.data.frame(which(zero==0, arr.ind=TRUE)) #should give you particles that are active vs. ones that are not 
+
+#identifying row and column where first '0' is - this is when the particle would have been released
+m1 <- as.matrix(status)
+
+rnc_start <- which(m1==0, arr.ind=TRUE)
+rnc_start <- as.data.frame(rnc_start)
+rnc_start <- rnc_start %>% group_by(col) %>% filter(row_number()==1)
+rnc_start <- as.matrix(rnc_start) #coords of start for each particle
+
+#creating dataframe that has row and columns to make a reference when join start and finish
+start_data <- as.data.frame(rnc_start)
+
+#extract lat and long of starting points
+start_data$lat_s <- lat[rnc_start]
+start_data$lon_s <- lon[rnc_start]
+
+start_data$status <- rep(0)
+
+#see what is happening to the particles unaccounted for
+missing <- data.frame(rep(1:n))
+missing$col <- missing$rep.1.146100.
+missing <- anti_join(missing, start_data) #ID particles that never became active
+#lat[, 36756] #some particles just never started 
+
+
+#start_data$start_location <- if_else(start_data$lat_s > -40.05 & start_data$lat_s < -39.50, "LNI", if_else(start_data$lat_s > -37.35 & start_data$lat_s < -36.80, "UNI", if_else(start_data$lat_s > -38.93 & start_data$lat_s < -38.38, "WC", if_else(start_data$lat_s > -43.31 & start_data$lat_s < -42.76, "CR", if_else(start_data$lat_s > -51.03 & start_data$lat_s < -50.48, "AI", "OTHER")))))
+
+#start_data$start_location <- if_else(start_data$lat_s > -40.05 & start_data$lat_s < -39, "LNI", if_else(start_data$lat_s > -37.35 & start_data$lat_s < -36, "UNI", if_else(start_data$lat_s > -38.93 & start_data$lat_s < -38, "WC", if_else(start_data$lat_s > -43.31 & start_data$lat_s < -42, "CR", if_else(start_data$lat_s > -51.03 & start_data$lat_s < -50, "AI", "OTHER")))))
+
+#splitting data into SCIs as they do not seem to be released from their trawl locations
+
+#start_data$start_location <- if_else(start_data$lat_s > -42.6 & start_data$lat_s < -39, "LNI", if_else(start_data$lat_s > -38 & start_data$lat_s < -36 &start_data$lon_s < 178 & start_data$lon_s > 173, "UNI", if_else(start_data$lat_s > -39 & start_data$lat_s < -38, "WC", if_else(start_data$lat_s > -45 & start_data$lat_s < -35 & start_data$lon_s < 173, "CR", if_else(start_data$lat_s > -52 & start_data$lat_s < -49, "AI", "LNI")))))
+
+#CR
+start_data$start_location <- if_else(start_data$lat_s > -45 & start_data$lat_s < -35 & start_data$lon_s < 173, "WC", if_else(start_data$lat_s > -55 & start_data$lat_s < -45, "AI", if_else(start_data$lat_s > -38 & start_data$lat_s & start_data$lon_s > 173, "UNI", if_else(start_data$lat_s < -42.6, "CR", "LNI"))))
+
+#AI, WC, UNI, LNI
+start_data$start_location <- if_else(start_data$lat_s > -45 & start_data$lat_s < -35 & start_data$lon_s < 173, "WC", if_else(start_data$lat_s > -55 & start_data$lat_s < -45, "AI", if_else(start_data$lat_s > -38 & start_data$lat_s & start_data$lon_s > 173, "UNI", if_else(start_data$lat_s < -42.6, "CR", "LNI"))))
+#separate CR and LNI
+not_CR_LNI <- filter(start_data, start_location != "CR" & start_location != "LNI")
+CR_LNI <- filter(start_data, start_location != "AI" & start_location != "WC", start_location != "UNI")
+
+CR_LNI$start_location <- if_else(CR_LNI$lat_s < -42 & CR_LNI$lon_s < 177.5, "CR", CR_LNI$start_location)
+
+CR_LNI$start_location <- if_else(CR_LNI$lat_s > -42.49802 & CR_LNI$lon_s > 177.0999, "LNI", CR_LNI$start_location)
+
+start_data <- rbind(not_CR_LNI, CR_LNI)
+
+#LNI only
+start_data$start_location <- if_else(start_data$start_location == "LNI", "CR", start_data$start_location)
+
+table(start_data$status, start_data$start_location)
+
+#identifying row and column where 'caughht' is
+rnc_end <- which(m1==3, arr.ind=TRUE)
+
+end_data <- as.data.frame(rnc_end)
+
+end_data$lat_f <- lat[rnc_end]
+end_data$lon_f <- lon[rnc_end]
+
+#end_data$lon_f <- 180 + (180 - (end_data$lon_f * -1))
+
+end_data$status <- rep(2)
+
+#join data together
+#this way can check stats
+start_end_data <- left_join(end_data, start_data,  by = "col")
+
+table(start_end_data$start_location, start_end_data$status.y)
+
+random_pick <- start_end_data %>% group_by(start_location) %>% sample_n(5)
+#random_pick <- filter(random_pick, start_location != "OTHER")
+
+#plot a few random that got caught
+caught_lat <- as.data.frame(lat[,random_pick$col])
+path_caught_lat <- gather(caught_lat, key = V, "latitude_path")
+path_caught_lat <- filter(path_caught_lat, latitude_path < 0)
+
+caught_lon <- as.data.frame(lon[,random_pick$col])
+path_caught_lon <- gather(caught_lon, key = V, "longitude_path")
+path_caught_lon <- filter(path_caught_lon, longitude_path < 200)
+
+path_data <- cbind(path_caught_lat, path_caught_lon)
+path_data <- path_data[,c(1, 2, 4)]
+V1 <- filter(path_data, V == "V1")
+V2 <- filter(path_data, V == "V2")
+V3 <- filter(path_data, V == "V3")
+V4 <- filter(path_data, V == "V4")
+V5 <- filter(path_data, V == "V5")
+V6 <- filter(path_data, V == "V6")
+V7 <- filter(path_data, V == "V7")
+V8 <- filter(path_data, V == "V8")
+V9 <- filter(path_data, V == "V9")
+V10 <- filter(path_data, V == "V10")
+V11 <- filter(path_data, V == "V11")
+V12 <- filter(path_data, V == "V12")
+V13 <- filter(path_data, V == "V13")
+V14 <- filter(path_data, V == "V14")
+V15 <- filter(path_data, V == "V15")
+V16 <- filter(path_data, V == "V16")
+V17 <- filter(path_data, V == "V17")
+V18 <- filter(path_data, V == "V18")
+V19 <- filter(path_data, V == "V19")
+V20 <- filter(path_data, V == "V20")
+#V21 <- filter(path_data, V == "V21")
+#V22 <- filter(path_data, V == "V22")
+#V23 <- filter(path_data, V == "V23")
+#V24 <- filter(path_data, V == "V24")
+#V25 <- filter(path_data, V == "V25")
+
+
+#path_data <-  pivot_wider(path_data, names_from = V, values_from = c("latitude_path", "longitude_path"))
+
+#map
+
+
+
+#Full NZ Map with points lon 155-180 and -180 to -165
+NZMap <- getNOAA.bathy(lon1 = 155, lon2 = 180,
+                       lat1 = -30, lat2 = -55, resolution = 4)
+plot(NZMap, lwd = c(0.3, 1), lty = c(1, 1),
+     deep = c(-1000, 0), shallow = c(-50, 0), step = c(500, 0),
+     col = c("grey", "black"), drawlabels = c(FALSE, FALSE))
+#points(x = path_data$longitude_path, y = path_data$latitude_path, col = "red")
+
+#add trawl box
+trawl_box <- data.frame("LNI_lon" = c(177.9639, 177.9639, 177.2627, 177.2627, 177.9639), "LNI_lat" = c(-39.50853, -40.0473, -40.0473, -39.50853, -39.50853), "UNI_lon" = c(176.7432, 176.7432, 176.0677, 176.0677, 176.7432), "UNI_lat" = c(-36.80961, -37.34838, -37.34838, -36.80961, -36.80961), "CR_lon" = c(177.0999, 177.0999, 176.3626, 176.3626, 177.0999), "CR_lat" = c(-42.76741, -43.30618, -43.30618, -42.76741, -42.76741), "AI_lon" = c(167.2985, 167.2985, 166.4465, 166.4465, 167.2985), "AI_lat" = c(-50.48226, -51.02104, -51.02104, -50.48226, -50.48226), "WC_lon" = c(169.806, 169.806, 169.116, 169.116, 169.806), "WC_lat" = c(-38.38665, -38.92542, -38.92542, -38.38665, -38.38665))
+
+lines(x = trawl_box$LNI_lon, y = trawl_box$LNI_lat, col = "white")
+lines(x = trawl_box$UNI_lon, y = trawl_box$UNI_lat, col = "white")
+lines(x = trawl_box$AI_lon, y = trawl_box$AI_lat, col = "white")
+lines(x = trawl_box$CR_lon, y = trawl_box$CR_lat, col = "white")
+lines(x = trawl_box$WC_lon, y = trawl_box$WC_lat, col = "white")
+
+lines(x = trawl_box$LNI_lon, y = trawl_box$LNI_lat, col = "black")
+lines(x = trawl_box$UNI_lon, y = trawl_box$UNI_lat, col = "black")
+lines(x = trawl_box$AI_lon, y = trawl_box$AI_lat, col = "black")
+lines(x = trawl_box$CR_lon, y = trawl_box$CR_lat, col = "black")
+lines(x = trawl_box$WC_lon, y = trawl_box$WC_lat, col = "black")
+
+polygon(x = trawl_box$LNI_lon, y = trawl_box$LNI_lat, col = "black")
+polygon(x = trawl_box$UNI_lon, y = trawl_box$UNI_lat, col = "black")
+polygon(x = trawl_box$AI_lon, y = trawl_box$AI_lat, col = "black")
+polygon(x = trawl_box$CR_lon, y = trawl_box$CR_lat, col = "black")
+polygon(x = trawl_box$WC_lon, y = trawl_box$WC_lat, col = "black")
+
+lines(x = V1$longitude_path, y = V1$latitude_path, col = "blue")
+lines(x = V2$longitude_path, y = V2$latitude_path, col = "blue")
+lines(x = V3$longitude_path, y = V3$latitude_path, col = "blue")
+lines(x = V4$longitude_path, y = V4$latitude_path, col = "blue")
+lines(x = V5$longitude_path, y = V5$latitude_path, col = "blue")
+lines(x = V6$longitude_path, y = V6$latitude_path, col = "green")
+lines(x = V7$longitude_path, y = V7$latitude_path, col = "green")
+lines(x = V8$longitude_path, y = V8$latitude_path, col = "green")
+lines(x = V9$longitude_path, y = V9$latitude_path, col = "green")
+lines(x = V10$longitude_path, y = V10$latitude_path, col = "green")
+lines(x = V11$longitude_path, y = V11$latitude_path, col = "red")
+lines(x = V12$longitude_path, y = V12$latitude_path, col = "red")
+lines(x = V13$longitude_path, y = V13$latitude_path, col = "red")
+lines(x = V14$longitude_path, y = V14$latitude_path, col = "red")
+lines(x = V15$longitude_path, y = V15$latitude_path, col = "red")
+lines(x = V16$longitude_path, y = V16$latitude_path, col = "purple")
+lines(x = V17$longitude_path, y = V17$latitude_path, col = "purple")
+lines(x = V18$longitude_path, y = V18$latitude_path, col = "purple")
+lines(x = V19$longitude_path, y = V19$latitude_path, col = "purple")
+lines(x = V20$longitude_path, y = V20$latitude_path, col = "purple")
+#lines(x = V21$longitude_path, y = V21$latitude_path, col = "purple")
+#lines(x = V22$longitude_path, y = V22$latitude_path, col = "blue")
+#lines(x = V23$longitude_path, y = V23$latitude_path, col = "blue")
+#lines(x = V24$longitude_path, y = V24$latitude_path, col = "blue")
+#lines(x = V25$longitude_path, y = V25$latitude_path, col = "blue")
+
+scaleBathy(NZMap, deg = 2, x = "bottomleft", inset = 5)
+points(as.numeric(random_pick$lon_s), as.numeric(random_pick$lat_s), pch = 21, col = "black", bg = "black", cex = 0.5)
+points(as.numeric(random_pick$lon_f), as.numeric(random_pick$lat_f), pch = 21, col = "black",
+       bg = "white", cex = 0.5)
+
+#where other are coming from
+plot(NZMap, lwd = c(0.3, 1), lty = c(1, 1),
+     deep = c(-1000, 0), shallow = c(-50, 0), step = c(500, 0),
+     col = c("grey", "black"), drawlabels = c(FALSE, FALSE))
+
+start_data_other <- start_data
+start_data_other <- filter(start_data_other, start_location == "AI")
+points(as.numeric(start_data_other$lon_s), as.numeric(start_data_other$lat_s), pch = 21, col = "black", bg = c("blue"), cex = 0.5)
+lines(x = trawl_box$AI_lon, y = trawl_box$AI_lat, col = "white")
+
+start_data_other <- start_data
+start_data_other <- filter(start_data_other, start_location == "CR")
+points(as.numeric(start_data_other$lon_s), as.numeric(start_data_other$lat_s), pch = 21, col = "black", bg = c("green"), cex = 0.5)
+lines(x = trawl_box$CR_lon, y = trawl_box$CR_lat, col = "white")
+
+start_data_other <- start_data
+start_data_other <- filter(start_data_other, start_location == "LNI")
+points(as.numeric(start_data_other$lon_s), as.numeric(start_data_other$lat_s), pch = 21, col = "black", bg = c("yellow"), cex = 0.5)
+lines(x = trawl_box$LNI_lon, y = trawl_box$LNI_lat, col = "white")
+
+start_data_other <- start_data
+start_data_other <- filter(start_data_other, start_location == "UNI")
+points(as.numeric(start_data_other$lon_s), as.numeric(start_data_other$lat_s), pch = 21, col = "black", bg = c("red"), cex = 0.5)
+lines(x = trawl_box$UNI_lon, y = trawl_box$UNI_lat, col = "white")
+
+start_data_other <- start_data
+start_data_other <- filter(start_data_other, start_location == "WC")
+points(as.numeric(start_data_other$lon_s), as.numeric(start_data_other$lat_s), pch = 21, col = "black", bg = c("purple"), cex = 0.5)
+lines(x = trawl_box$WC_lon, y = trawl_box$WC_lat, col = "white")
+
+#count time
+time <- t(status)
+time <- as.data.frame(time)
+time$col <- rep(1:146100)
+
+end_data_time <- end_data[,1:2]
+
+time <- left_join(end_data_time, time)
+time$count_zero <- apply(time, 1, function(x) length(which(x==0)))
+time$count_zero <- time$count_zero+1 #plus 1 for not counting '2'
+
+head(time$count_zero)
+
+area <- start_end_data[,c(2,10)] #may need to be adjusted according to data
+
+time_area <- time[,c(2,524)]
+time_area <- left_join(area, time_area)
+aggregate(count_zero ~ start_location, time_area, FUN = mean) #if there is min mean max etc in the global env the fun will not work rm(min/max) from global env
+
+time_area %>% filter(start_location == "WC") %>% filter(count_zero == 46)
+
+error_std <- time_area %>% filter(start_location == "WC")
+std(error_std$count_zero)
+se(error_std$count_zero)
+
+std <- function(x) sd(x)/sqrt(length(x))
+
+se <- function(x) sqrt(var(x)/length(x))
+
+#cook straight number
+cs_lat <- t(lat)
+cs_lat <- as.data.frame(cs_lat)
+cs_lat$col <- rep(1:146100)
+
+end_data_cs_lat <- end_data[,1:2]
+
+cs_lat <- left_join(end_data_cs_lat, cs_lat, by = c("col"))
+
+area <- start_end_data[,c(2,10)]
+
+cs_lat <- left_join(cs_lat, area, by = c("col"))
+
+piv_lat_1 <- pivot_longer(cs_lat, 3:523, names_to = "V", values_to = "latitude")
+piv_lat_1 <- filter(piv_lat_1, latitude < -39.3890)
+piv_lat_1 <- filter(piv_lat_1, latitude > -40.6914)
+piv_lat_1$area <- rep("A1")
+
+piv_lat_2 <- pivot_longer(cs_lat, 3:523, names_to = "V", values_to = "latitude")
+piv_lat_2 <- filter(piv_lat_2, latitude < -41.5516)
+piv_lat_2 <- filter(piv_lat_2, latitude > -43.2608)
+piv_lat_2$area <- rep("A2")
+
+#piv_lat <- rbind(piv_lat_1, piv_lat_2) 
+
+cs_lon <- t(lon)
+cs_lon <- as.data.frame(cs_lon)
+cs_lon$col <- rep(1:146100)
+
+end_data_cs_lon <- end_data[,1:2]
+
+cs_lon <- left_join(end_data_cs_lon, cs_lon, by = c("col"))
+
+area <- start_end_data[,c(2,10)]
+
+cs_lon <- left_join(cs_lon, area, by = c("col"))
+
+piv_lon_1 <- pivot_longer(cs_lon, 3:523, names_to = "V", values_to = "longitude")
+piv_lon_1 <- filter(piv_lon_1, longitude < 175.1074)
+piv_lon_1 <- filter(piv_lon_1, longitude > 172.7225)
+piv_lon_1$area <- rep("A1")
+
+piv_lon_2 <- pivot_longer(cs_lon, 3:523, names_to = "V", values_to = "longitude")
+piv_lon_2 <- filter(piv_lon_2, longitude < 178.0517)
+piv_lon_2 <- filter(piv_lon_2, longitude > 174.1597)
+piv_lon_2$area <- rep("A2")
+
+piv_1 <- inner_join(piv_lat_1, piv_lon_1, by = c("row", "col", "start_location", "V"))
+piv_1 <- piv_1[, c(1,2,3,6)]
+piv_1 <- unique(piv_1)
+
+piv_2 <- inner_join(piv_lat_2, piv_lon_2, by = c("row", "col", "start_location", "V"))
+piv_2 <- piv_2[, c(1,2,3,6)]
+piv_2 <- unique(piv_2)
+
+piv_CS <- inner_join(piv_1, piv_2, by = c("col", "start_location"))
+
+
+
+#plot a few random that got caught
+caught_lat <- as.data.frame(lat[,44422])
+path_caught_lat <- gather(caught_lat, key = V, "latitude_path")
+path_caught_lat <- filter(path_caught_lat, latitude_path < 0)
+
+caught_lon <- as.data.frame(lon[,44422])
+path_caught_lon <- gather(caught_lon, key = V, "longitude_path")
+path_caught_lon <- filter(path_caught_lon, longitude_path < 200)
+
+path_data <- cbind(path_caught_lat, path_caught_lon)
+
+plot(NZMap, lwd = c(0.3, 1), lty = c(1, 1),
+     deep = c(-1000, 0), shallow = c(-50, 0), step = c(500, 0),
+     col = c("grey", "black"), drawlabels = c(FALSE, FALSE))
+
+lines(x = path_data$longitude_path, y = path_data$latitude_path, col = "blue")
+
+
+###DAY 2###
+#identifying row and column where first '0' is
+rnc_start_2 <- which(m1==0, arr.ind=TRUE)
+rnc_start_2 <- as.data.frame(rnc_start_2)
+rnc_start_2 <- rnc_start_2 %>% group_by(col) %>% filter(row_number()==53)
+rnc_start_2 <- as.matrix(rnc_start_2)
+
+#creating dataframe that has row and columns to make a reference when join start and finish
+start_data_2 <- as.data.frame(rnc_start_2)
+
+start_data_2$lat_s <- lat[rnc_start_2]
+start_data_2$lon_s <- lon[rnc_start_2]
+
+start_data_2$status <- rep(0)
+
+start_area <- start_data[,c(2,6)]
+
+start_data_2 <- left_join(start_data_2, start_area, by = "col")
+
+plot(NZMap, lwd = c(0.3, 1), lty = c(1, 1),
+     deep = c(-1000, 0), shallow = c(-50, 0), step = c(500, 0),
+     col = c("grey", "black"), drawlabels = c(FALSE, FALSE))
+
+start_data_other <- start_data_2
+start_data_other <- filter(start_data_other, start_location == "AI")
+points(as.numeric(start_data_other$lon_s), as.numeric(start_data_other$lat_s), pch = 21, col = "black", bg = c("blue"), cex = 0.5)
+polygon(x = trawl_box$AI_lon, y = trawl_box$AI_lat, col = "black")
+lines(x = trawl_box$AI_lon, y = trawl_box$AI_lat, col = "white")
+
+start_data_other <- start_data_2
+start_data_other <- filter(start_data_other, start_location == "CR")
+points(as.numeric(start_data_other$lon_s), as.numeric(start_data_other$lat_s), pch = 21, col = "black", bg = c("green"), cex = 0.5)
+polygon(x = trawl_box$CR_lon, y = trawl_box$CR_lat, col = "black")
+lines(x = trawl_box$CR_lon, y = trawl_box$CR_lat, col = "white")
+
+start_data_other <- start_data_2
+start_data_other <- filter(start_data_other, start_location == "LNI")
+points(as.numeric(start_data_other$lon_s), as.numeric(start_data_other$lat_s), pch = 21, col = "black", bg = c("yellow"), cex = 0.5)
+polygon(x = trawl_box$LNI_lon, y = trawl_box$LNI_lat, col = "black")
+lines(x = trawl_box$LNI_lon, y = trawl_box$LNI_lat, col = "white")
+
+start_data_other <- start_data_2
+start_data_other <- filter(start_data_other, start_location == "UNI")
+points(as.numeric(start_data_other$lon_s), as.numeric(start_data_other$lat_s), pch = 21, col = "black", bg = c("red"), cex = 0.5)
+polygon(x = trawl_box$UNI_lon, y = trawl_box$UNI_lat, col = "black")
+lines(x = trawl_box$UNI_lon, y = trawl_box$UNI_lat, col = "white")
+
+
+start_data_other <- start_data_2
+start_data_other <- filter(start_data_other, start_location == "WC")
+points(as.numeric(start_data_other$lon_s), as.numeric(start_data_other$lat_s), pch = 21, col = "black", bg = c("purple"), cex = 0.5)
+polygon(x = trawl_box$WC_lon, y = trawl_box$WC_lat, col = "black")
+lines(x = trawl_box$WC_lon, y = trawl_box$WC_lat, col = "white")
+
+points (150, -40)
+
+
+
+
+
+
+
