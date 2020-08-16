@@ -27,7 +27,7 @@ dim(status)
 #status
 m1 <- as.matrix(status)
 
-no_col <- as.data.frame(rep(1:n)) #this will very with the size of your dataframe
+no_col <- as.data.frame(rep(1:n)) #n = this will very with the size of your dataframe
 no_col$col <- no_col$`rep(1:n)` 
 
 #Extract particles that had status 1
@@ -45,7 +45,7 @@ no_zero <- anti_join(no_zero, no_two)
 no_zero <- anti_join(no_zero, no_three)
 #could look to ID which are still active if interested
 zero <- semi_join(m1, no_zero) 
-zero <- as.data.frame(which(zero==0, arr.ind=TRUE)) #should give you particles that are active vs. ones that are not 
+zero <- as.data.frame(which(zero==0, arr.ind=TRUE)) #should give you particles that are active vs. ones that are not (some particles just never started)
 
 #identifying row and column where first '0' is - this is when the particle would have been released
 m1 <- as.matrix(status)
@@ -65,26 +65,21 @@ start_data$lon_s <- lon[rnc_start]
 start_data$status <- rep(0)
 
 #see what is happening to the particles unaccounted for
-missing <- data.frame(rep(1:n))
-missing$col <- missing$rep.1.146100.
+missing <- data.frame(rep(1:n)) #n = this will very with the size of your dataframe
+missing$col <- missing$rep.1.n.
 missing <- anti_join(missing, start_data) #ID particles that never became active
 #lat[, 36756] #some particles just never started 
 
+#################################################################################################
+#Not all particles were released within their defined boxes and this section is specifically for this articles which can be adapted for your own work
+#As best possible all particles were assigned to a release location (fishery management unit) dependant on geographic coordinates
 
-#start_data$start_location <- if_else(start_data$lat_s > -40.05 & start_data$lat_s < -39.50, "LNI", if_else(start_data$lat_s > -37.35 & start_data$lat_s < -36.80, "UNI", if_else(start_data$lat_s > -38.93 & start_data$lat_s < -38.38, "WC", if_else(start_data$lat_s > -43.31 & start_data$lat_s < -42.76, "CR", if_else(start_data$lat_s > -51.03 & start_data$lat_s < -50.48, "AI", "OTHER")))))
-
-#start_data$start_location <- if_else(start_data$lat_s > -40.05 & start_data$lat_s < -39, "LNI", if_else(start_data$lat_s > -37.35 & start_data$lat_s < -36, "UNI", if_else(start_data$lat_s > -38.93 & start_data$lat_s < -38, "WC", if_else(start_data$lat_s > -43.31 & start_data$lat_s < -42, "CR", if_else(start_data$lat_s > -51.03 & start_data$lat_s < -50, "AI", "OTHER")))))
-
-#splitting data into SCIs as they do not seem to be released from their trawl locations
-
-#start_data$start_location <- if_else(start_data$lat_s > -42.6 & start_data$lat_s < -39, "LNI", if_else(start_data$lat_s > -38 & start_data$lat_s < -36 &start_data$lon_s < 178 & start_data$lon_s > 173, "UNI", if_else(start_data$lat_s > -39 & start_data$lat_s < -38, "WC", if_else(start_data$lat_s > -45 & start_data$lat_s < -35 & start_data$lon_s < 173, "CR", if_else(start_data$lat_s > -52 & start_data$lat_s < -49, "AI", "LNI")))))
-
-#CR
+#CR#
 start_data$start_location <- if_else(start_data$lat_s > -45 & start_data$lat_s < -35 & start_data$lon_s < 173, "WC", if_else(start_data$lat_s > -55 & start_data$lat_s < -45, "AI", if_else(start_data$lat_s > -38 & start_data$lat_s & start_data$lon_s > 173, "UNI", if_else(start_data$lat_s < -42.6, "CR", "LNI"))))
 
-#AI, WC, UNI, LNI
+#AI, WC, UNI, LNI#
 start_data$start_location <- if_else(start_data$lat_s > -45 & start_data$lat_s < -35 & start_data$lon_s < 173, "WC", if_else(start_data$lat_s > -55 & start_data$lat_s < -45, "AI", if_else(start_data$lat_s > -38 & start_data$lat_s & start_data$lon_s > 173, "UNI", if_else(start_data$lat_s < -42.6, "CR", "LNI"))))
-#separate CR and LNI
+#separate CR and LNI#
 not_CR_LNI <- filter(start_data, start_location != "CR" & start_location != "LNI")
 CR_LNI <- filter(start_data, start_location != "AI" & start_location != "WC", start_location != "UNI")
 
@@ -94,12 +89,13 @@ CR_LNI$start_location <- if_else(CR_LNI$lat_s > -42.49802 & CR_LNI$lon_s > 177.0
 
 start_data <- rbind(not_CR_LNI, CR_LNI)
 
-#LNI only
+#LNI only#
 start_data$start_location <- if_else(start_data$start_location == "LNI", "CR", start_data$start_location)
 
 table(start_data$status, start_data$start_location)
+#################################################################################################
 
-#identifying row and column where 'caughht' is
+#identifying row and column where 'caught' is
 rnc_end <- which(m1==3, arr.ind=TRUE)
 
 end_data <- as.data.frame(rnc_end)
