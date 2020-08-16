@@ -10,59 +10,47 @@ library(diveRsity)
 
 rndm_SNP <- tidy_genomic_data("./populations.snps.vcf", "./strata.tsv", parallel.core = 1, filter.common.markers = FALSE, filter.monomorphic = FALSE)
 
-#need to get markers and locus and number SNPs so can then remove chromosomes
+#retain only loci that passed QC filtering
 rndm_SNP$no_SNP <- rep(1:2499) #SNP number
 rndm_SNP <- semi_join(rndm_SNP, loci_filtered_df, by = "LOCUS")
 
 #group by locus and choose random snp
 BA_rndm <- rndm_SNP
-BA_rndm <- BA_rndm %>% group_by(LOCUS) %>% sample_n(size = 1)
+BA_rndm <- BA_rndm %>% group_by(LOCUS) %>% sample_n(size = 1) #here you know what SNP was chosen
 
+#PGD Spider v 2.1.1.5.
+#converted populations.snps.vcf to immanc Bayesass format
+PGD_output <- read.delim("./path/to/PGD_output/file/immanc_BA3.txt", header = F)
 
-#take output from PGD that converted populations.snps.vcf ti immanc
-PGD_output <- read.delim("./BA3/test_vcf_all.txt", header = F)
-
-PGD_output$sep <- PGD_output$V3
+#doing some fine tuning on the file - may not be necessary in all cases depending on input data
+PGD_output$sep <- PGD_output$V3 #want to separate V3 - SNP -column
 PGD_output <- separate(PGD_output, 6, c("rm", "no_SNP"), sep = "_")
 PGD_output <- PGD_output[,-6]
 
-PGD_output$sep <- PGD_output$V1
-PGD_output <- separate(PGD_output, 7, c("SCI", "rm"), sep = "([\\.])")
+PGD_output$sep <- PGD_output$V1 #need to modify populations a bit as needs to be general location
+PGD_output <- separate(PGD_output, 7, c("location", "rm"), sep = "([\\.])")
 PGD_output <- PGD_output[,-8]
 
-#rm wholered
-PGD_output <- filter(PGD_output, SCI != "WHOLEred")
+#pop adjustment
+PGD_output$SCI <- gsub("location_A1", "location_A", PGD_output$location)
+PGD_output$SCI <- gsub("location_A2", "location_A", PGD_output$location)
 
-#pops
-PGD_output$SCI <- gsub("02", "Pop_2", PGD_output$SCI)
-PGD_output$SCI <- gsub("01", "Pop_2", PGD_output$SCI)
-PGD_output$SCI <- gsub("03", "Pop_1", PGD_output$SCI)
-PGD_output$SCI <- gsub("04", "Pop_1", PGD_output$SCI)
-PGD_output$SCI <- gsub("269", "Pop_6", PGD_output$SCI)
-PGD_output$SCI <- gsub("299", "Pop_6", PGD_output$SCI)
-PGD_output$SCI <- gsub("257", "Pop_3", PGD_output$SCI)
-PGD_output$SCI <- gsub("247", "Pop_3", PGD_output$SCI)
-PGD_output$SCI <- gsub("WC1", "Pop_7", PGD_output$SCI)
-PGD_output$SCI <- gsub("WC2", "Pop_7", PGD_output$SCI)
-PGD_output$SCI <- gsub("WHOLEblue", "Pop_7", PGD_output$SCI)
-PGD_output$SCI <- gsub("HALFred", "Pop_7", PGD_output$SCI)
-
+#retain selected SNPs
 PGD_output$no_SNP <- as.numeric(PGD_output$no_SNP)
 PGD_output <- semi_join(PGD_output, BA_rndm, by = "no_SNP")
 
 head(PGD_output)
 
-PGD_output <- PGD_output[,c(1,7,3,4,5)]
+PGD_output <- PGD_output[,c(1,7,3,4,5)] #select columns needed for BA3
 
 PGD_output$V1 <- gsub("([\\.])", "_", PGD_output$V1)
 
-write.table(PGD_output, file = "./BA3/rndm_SNP.txt", sep = "\t",
+write.table(PGD_output, file = "./path/to/save/BA3_input.txt", sep = "\t",
             row.names = F, col.names = F)
-
 
 #BA3 v 3.0.4 - not run in R
 #Parameters - a, f and m - were adjusted in order to maintain acceptable rates (between 20% and 60%) and to allow for sufficient chain mixing.
-../BA3SNP -u -v -g -t -a 0.55 -f 0.3 -m 0.35 -i 10000000 -b 1000000 -n 1000 -s 106454 -o ./s106454_output.txt ./input_s106454_3.txt
+../BA3SNP -u -v -g -t -a 0.55 -f 0.3 -m 0.35 -i 10000000 -b 1000000 -n 1000 -s 106454 -o ./s106454_output.txt ./input_s106454.txt
 
 #Divmigrate#
 write_genepop(loci_filtered_df, filename = "./path/to/save/DM")
