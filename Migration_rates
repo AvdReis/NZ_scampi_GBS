@@ -2,9 +2,10 @@
 library(radiator)
 library(diveRsity)
 
+#------------------------------------------------------------------------------------------#
 ####TEMPORAL AND SPATIAL STRUCTURE####
 
-#Bayesass#
+#BAYESASS#
 #please note that this was not run in R, but making the input data was
 #note that the haplotypic data cannot be used here and so one random SNP was selected
 
@@ -52,7 +53,7 @@ write.table(PGD_output, file = "./path/to/save/BA3_input.txt", sep = "\t",
 #Parameters - a, f and m - were adjusted in order to maintain acceptable rates (between 20% and 60%) and to allow for sufficient chain mixing.
 ../BA3SNP -u -v -g -t -a 0.55 -f 0.3 -m 0.35 -i 10000000 -b 1000000 -n 1000 -s 106454 -o ./s106454_output.txt ./input_s106454.txt
 
-#Divmigrate#
+#DIVMIGRATE#
 write_genepop(loci_filtered_df, filename = "./path/to/save/DM")
 #doing a 1000 or 10000 gave the exact same results!
 DM <- divMigrate("./path/to/file/DM_genepop.gen", boots = 1000, stat = "d", plot_network = T)
