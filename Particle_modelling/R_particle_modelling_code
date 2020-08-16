@@ -149,6 +149,9 @@ se(error_std$count_zero)
 
 #this cool R package animates your particles path, but required quite a bit of tweaking to get the correct input df
 library(moveVis)
+library(move)
+library(raster)
+library(ggplot2)
 
 All_random_pick <- start_data %>% group_by(start_location) %>% sample_n(100) #choosing 100 particles
 #could use start_end_data if wanted to have only those particles that were caught
