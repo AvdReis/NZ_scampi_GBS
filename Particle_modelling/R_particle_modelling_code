@@ -43,9 +43,6 @@ no_three <- as.data.frame(which(m1==3, arr.ind=TRUE))
 no_zero <- anti_join(no_col, no_one)
 no_zero <- anti_join(no_zero, no_two)
 no_zero <- anti_join(no_zero, no_three)
-#could look to ID which are still active if interested
-zero <- semi_join(m1, no_zero) 
-zero <- as.data.frame(which(zero==0, arr.ind=TRUE)) #should give you particles that are active vs. ones that are not (some particles just never started)
 
 #identifying row and column where first '0' is - this is when the particle would have been released
 m1 <- as.matrix(status)
@@ -147,6 +144,9 @@ se(error_std$count_zero)
 
 ##########################################################################################
 ####MAKE A MOVING MAP####
+
+#good tutorial to help understand that package - http://movevis.org/articles/example-1.html
+
 #this cool R package animates your particles path, but required quite a bit of tweaking to get the correct input df
 library(moveVis)
 
@@ -195,6 +195,7 @@ d$x <- as.numeric(d$x)
 d$y <- as.numeric(d$y)
 
 #to maintain in working box for New Zealand maps
+#if making a static map these points can be plotted if changed to go 180+
 d$x.1 <- if_else(d$y < 0, 179, d$y)
 
 e <- d[,c(4,6,2,3)]
@@ -211,140 +212,49 @@ animate_frames(frames, out_file = "./path/to/save/particle_movement_movie.mov", 
 ##########################################################################################
 ####PLOT A STATIC MAP####
 
-random_pick <- start_end_data %>% group_by(start_location) %>% sample_n(5)
+#great tutorial on plotting with R - https://hansenjohnson.org/post/bathymetric-maps-in-r/
 
-#plot a few random that got caught
-caught_lat <- as.data.frame(lat[,random_pick$col])
-path_caught_lat <- gather(caught_lat, key = V, "latitude_path")
-path_caught_lat <- filter(path_caught_lat, latitude_path < 0)
+library(ggplot2)
+library(mapdata)
+library(mapproj)
+library(marmap)
 
-caught_lon <- as.data.frame(lon[,random_pick$col])
-path_caught_lon <- gather(caught_lon, key = V, "longitude_path")
-path_caught_lon <- filter(path_caught_lon, longitude_path < 200)
-
-path_data <- cbind(path_caught_lat, path_caught_lon)
-path_data <- path_data[,c(1, 2, 4)]
-V1 <- filter(path_data, V == "V1")
-V2 <- filter(path_data, V == "V2")
-V3 <- filter(path_data, V == "V3")
-V4 <- filter(path_data, V == "V4")
-V5 <- filter(path_data, V == "V5")
-V6 <- filter(path_data, V == "V6")
-V7 <- filter(path_data, V == "V7")
-V8 <- filter(path_data, V == "V8")
-V9 <- filter(path_data, V == "V9")
-V10 <- filter(path_data, V == "V10")
-V11 <- filter(path_data, V == "V11")
-V12 <- filter(path_data, V == "V12")
-V13 <- filter(path_data, V == "V13")
-V14 <- filter(path_data, V == "V14")
-V15 <- filter(path_data, V == "V15")
-V16 <- filter(path_data, V == "V16")
-V17 <- filter(path_data, V == "V17")
-V18 <- filter(path_data, V == "V18")
-V19 <- filter(path_data, V == "V19")
-V20 <- filter(path_data, V == "V20")
-#V21 <- filter(path_data, V == "V21")
-#V22 <- filter(path_data, V == "V22")
-#V23 <- filter(path_data, V == "V23")
-#V24 <- filter(path_data, V == "V24")
-#V25 <- filter(path_data, V == "V25")
-
-
-#path_data <-  pivot_wider(path_data, names_from = V, values_from = c("latitude_path", "longitude_path"))
-
-#map
-
-
-
+#could always add bathymetry
 #Full NZ Map with points lon 155-180 and -180 to -165
-NZMap <- getNOAA.bathy(lon1 = 155, lon2 = 180,
-                       lat1 = -30, lat2 = -55, resolution = 4)
-plot(NZMap, lwd = c(0.3, 1), lty = c(1, 1),
-     deep = c(-1000, 0), shallow = c(-50, 0), step = c(500, 0),
-     col = c("grey", "black"), drawlabels = c(FALSE, FALSE))
-#points(x = path_data$longitude_path, y = path_data$latitude_path, col = "red")
+#Issue with NZ: Longitudes should have values between -180 and +180 - so map splits in half if wanting to add contours
+#NZMap <- getNOAA.bathy(lon1 = 155, lon2 = 180, lat1 = -30, lat2 = -55, resolution = 4)
 
-#add trawl box
-trawl_box <- data.frame("LNI_lon" = c(177.9639, 177.9639, 177.2627, 177.2627, 177.9639), "LNI_lat" = c(-39.50853, -40.0473, -40.0473, -39.50853, -39.50853), "UNI_lon" = c(176.7432, 176.7432, 176.0677, 176.0677, 176.7432), "UNI_lat" = c(-36.80961, -37.34838, -37.34838, -36.80961, -36.80961), "CR_lon" = c(177.0999, 177.0999, 176.3626, 176.3626, 177.0999), "CR_lat" = c(-42.76741, -43.30618, -43.30618, -42.76741, -42.76741), "AI_lon" = c(167.2985, 167.2985, 166.4465, 166.4465, 167.2985), "AI_lat" = c(-50.48226, -51.02104, -51.02104, -50.48226, -50.48226), "WC_lon" = c(169.806, 169.806, 169.116, 169.116, 169.806), "WC_lat" = c(-38.38665, -38.92542, -38.92542, -38.38665, -38.38665))
+# get regional polygons
+reg = map_data("world2Hires")
+#unique(reg$region)
+reg = subset(reg, region %in% c('New Zealand'))
 
-lines(x = trawl_box$LNI_lon, y = trawl_box$LNI_lat, col = "white")
-lines(x = trawl_box$UNI_lon, y = trawl_box$UNI_lat, col = "white")
-lines(x = trawl_box$AI_lon, y = trawl_box$AI_lat, col = "white")
-lines(x = trawl_box$CR_lon, y = trawl_box$CR_lat, col = "white")
-lines(x = trawl_box$WC_lon, y = trawl_box$WC_lat, col = "white")
+# set map limits
+#Using map_data can extend past 180 and would just need to convert coords in df e to suit
+#see d$x.1 <- if_else(d$y < 0, 179, d$y) above
+lons = c(155, 180)
+lats = c(-30, -55)
 
-lines(x = trawl_box$LNI_lon, y = trawl_box$LNI_lat, col = "black")
-lines(x = trawl_box$UNI_lon, y = trawl_box$UNI_lat, col = "black")
-lines(x = trawl_box$AI_lon, y = trawl_box$AI_lat, col = "black")
-lines(x = trawl_box$CR_lon, y = trawl_box$CR_lat, col = "black")
-lines(x = trawl_box$WC_lon, y = trawl_box$WC_lat, col = "black")
-
-polygon(x = trawl_box$LNI_lon, y = trawl_box$LNI_lat, col = "black")
-polygon(x = trawl_box$UNI_lon, y = trawl_box$UNI_lat, col = "black")
-polygon(x = trawl_box$AI_lon, y = trawl_box$AI_lat, col = "black")
-polygon(x = trawl_box$CR_lon, y = trawl_box$CR_lat, col = "black")
-polygon(x = trawl_box$WC_lon, y = trawl_box$WC_lat, col = "black")
-
-lines(x = V1$longitude_path, y = V1$latitude_path, col = "blue")
-lines(x = V2$longitude_path, y = V2$latitude_path, col = "blue")
-lines(x = V3$longitude_path, y = V3$latitude_path, col = "blue")
-lines(x = V4$longitude_path, y = V4$latitude_path, col = "blue")
-lines(x = V5$longitude_path, y = V5$latitude_path, col = "blue")
-lines(x = V6$longitude_path, y = V6$latitude_path, col = "green")
-lines(x = V7$longitude_path, y = V7$latitude_path, col = "green")
-lines(x = V8$longitude_path, y = V8$latitude_path, col = "green")
-lines(x = V9$longitude_path, y = V9$latitude_path, col = "green")
-lines(x = V10$longitude_path, y = V10$latitude_path, col = "green")
-lines(x = V11$longitude_path, y = V11$latitude_path, col = "red")
-lines(x = V12$longitude_path, y = V12$latitude_path, col = "red")
-lines(x = V13$longitude_path, y = V13$latitude_path, col = "red")
-lines(x = V14$longitude_path, y = V14$latitude_path, col = "red")
-lines(x = V15$longitude_path, y = V15$latitude_path, col = "red")
-lines(x = V16$longitude_path, y = V16$latitude_path, col = "purple")
-lines(x = V17$longitude_path, y = V17$latitude_path, col = "purple")
-lines(x = V18$longitude_path, y = V18$latitude_path, col = "purple")
-lines(x = V19$longitude_path, y = V19$latitude_path, col = "purple")
-lines(x = V20$longitude_path, y = V20$latitude_path, col = "purple")
-#lines(x = V21$longitude_path, y = V21$latitude_path, col = "purple")
-#lines(x = V22$longitude_path, y = V22$latitude_path, col = "blue")
-#lines(x = V23$longitude_path, y = V23$latitude_path, col = "blue")
-#lines(x = V24$longitude_path, y = V24$latitude_path, col = "blue")
-#lines(x = V25$longitude_path, y = V25$latitude_path, col = "blue")
-
-scaleBathy(NZMap, deg = 2, x = "bottomleft", inset = 5)
-points(as.numeric(random_pick$lon_s), as.numeric(random_pick$lat_s), pch = 21, col = "black", bg = "black", cex = 0.5)
-points(as.numeric(random_pick$lon_f), as.numeric(random_pick$lat_f), pch = 21, col = "black",
-       bg = "white", cex = 0.5)
-
-#where other are coming from
-plot(NZMap, lwd = c(0.3, 1), lty = c(1, 1),
-     deep = c(-1000, 0), shallow = c(-50, 0), step = c(500, 0),
-     col = c("grey", "black"), drawlabels = c(FALSE, FALSE))
-
-start_data_other <- start_data
-start_data_other <- filter(start_data_other, start_location == "AI")
-points(as.numeric(start_data_other$lon_s), as.numeric(start_data_other$lat_s), pch = 21, col = "black", bg = c("blue"), cex = 0.5)
-lines(x = trawl_box$AI_lon, y = trawl_box$AI_lat, col = "white")
-
-start_data_other <- start_data
-start_data_other <- filter(start_data_other, start_location == "CR")
-points(as.numeric(start_data_other$lon_s), as.numeric(start_data_other$lat_s), pch = 21, col = "black", bg = c("green"), cex = 0.5)
-lines(x = trawl_box$CR_lon, y = trawl_box$CR_lat, col = "white")
-
-start_data_other <- start_data
-start_data_other <- filter(start_data_other, start_location == "LNI")
-points(as.numeric(start_data_other$lon_s), as.numeric(start_data_other$lat_s), pch = 21, col = "black", bg = c("yellow"), cex = 0.5)
-lines(x = trawl_box$LNI_lon, y = trawl_box$LNI_lat, col = "white")
-
-start_data_other <- start_data
-start_data_other <- filter(start_data_other, start_location == "UNI")
-points(as.numeric(start_data_other$lon_s), as.numeric(start_data_other$lat_s), pch = 21, col = "black", bg = c("red"), cex = 0.5)
-lines(x = trawl_box$UNI_lon, y = trawl_box$UNI_lat, col = "white")
-
-start_data_other <- start_data
-start_data_other <- filter(start_data_other, start_location == "WC")
-points(as.numeric(start_data_other$lon_s), as.numeric(start_data_other$lat_s), pch = 21, col = "black", bg = c("purple"), cex = 0.5)
-lines(x = trawl_box$WC_lon, y = trawl_box$WC_lat, col = "white")
-
+# make plot
+ggplot()+
+  
+  # add coastline
+  geom_polygon(data = reg, aes(x = long, y = lat, group = group), 
+               fill = "darkgrey", color = NA) +
+# add line
+geom_path(data = e, aes(x = x.1, y = x, group = V),
+          colour = "black", alpha = 1, size=0.3)+
+  
+  # add points
+  geom_point(data = e, aes(x = x.1, y = x),
+             colour = "black", fill = "grey", 
+             stroke = .5, size = 2, 
+             alpha = 1, shape = 21) +
+  
+  # configure projection and plot domain
+  coord_map(xlim = lons, ylim = lats)+
+  
+  # formatting
+  ylab("")+xlab("")+
+  theme_bw()
 #####################################################################################################################################
