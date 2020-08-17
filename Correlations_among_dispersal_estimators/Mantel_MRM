@@ -1,0 +1,45 @@
+####PACKAGES####
+library(ecodist)
+library(readxl)
+library(dplyr)
+library(readxl)
+
+#------------------------------------------------------------------------------------------#
+#---DATA---#
+#use recorded results and entered into excl spreadsheet - provided
+mantel_matrix <- read_excel("./path/to/file/mantel_df.xlsx")
+
+FST <- mantel_matrix[1:5, 2:6] #Fst results
+BA3 <- mantel_matrix[8:12, 2:6] #BA3 results
+Cap <- mantel_matrix[15:19, 2:6] #particle capture
+Pdist <- mantel_matrix[22:26, 2:6] #particle distance
+Genedist <- mantel_matrix[29:33, 2:6] #genetic distance
+Geodist <- mantel_matrix[36:40, 2:6] #geographic distance
+divM <- mantel_matrix[43:47, 2:6] #divmigrate results
+
+#---MANTEL TEST---#
+
+genedist <- dist(Genedist, method = "euclidean")
+#x = Geodist or Pdist
+test_variable <- dist(x, method = "euclidean")
+
+set.seed(756)
+mantel(genedist~test_variable, nperm = 10000, nboot = 10000, pboot = 0.9, cboot = 0.95)
+
+#---MRM---#
+
+#BA3
+BA3 <- dist(BA3, method = "euclidean")
+#x = FST/Genedist/Geodist/Cap/Pdist
+test_variable <- dist(x, method = "euclidean")
+
+set.seed(756)
+MRM(BA3~test_variable, nperm = 10000)
+
+#divMigrate
+divM <- dist(divM, method = "euclidean")
+#x = FST/Genedist/Geodist/Cap/Pdist 
+test_variable <- dist(x, method = "euclidean")
+
+set.seed(756)
+MRM(divM~test_variable, nperm = 10000)
