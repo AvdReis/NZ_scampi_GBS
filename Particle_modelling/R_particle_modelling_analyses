@@ -120,7 +120,7 @@ time$col <- rep(1:n)
 end_data_time <- end_data[,1:2]
 
 time <- left_join(end_data_time, time)
-time$count_zero <- apply(time, 1, function(x) length(which(x==0))) #count how many zeros there are in a column
+time$count_zero <- apply(time, 1, function(x) length(which(x==0))) #count how many zeros there are in a row
 time$count_zero <- time$count_zero+1 #plus 1 for not counting '3'
 
 head(time$count_zero)
