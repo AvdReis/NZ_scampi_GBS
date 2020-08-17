@@ -129,9 +129,9 @@ area <- start_end_data[,c(2,10)] #may need to be adjusted according to data
 
 time_area <- time[,c(2,524)]
 time_area <- left_join(area, time_area)
-aggregate(count_zero ~ start_location, time_area, FUN = mean) #if there is min mean max etc in the global env the fun will not work rm(min/max) from global env
+aggregate(count_zero ~ start_location, time_area, FUN = mean/max/min/median) #if there is min mean max etc in the global env the fun will not work rm(min/max) from global env
+time_area %>% filter(count_zero == n & start_location == "location_A") #obtain particle ID
 
-time_area %>% filter(start_location == "location_A") %>% filter(count_zero == 46)
 error_std <- time_area %>% filter(start_location == "location_A")
 
 #--------------------#
