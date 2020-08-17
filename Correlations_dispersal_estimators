@@ -1,6 +1,8 @@
 ####PACKAGES####
 library(tidyverse)
 library(geosphere)
+library(scales)
+library(marmap)
 
 #------------------------------------------------------------------------------------------#
 #ID particles that travelled for the longest or time period
@@ -86,10 +88,8 @@ table(start_end_data$start_location, start_end_data$status.y)
 
 #select two random particles from a specific location
 random_pick <- start_end_data %>% group_by(start_location) %>% filter(start_location == "AI") %>% sample_n(2)
-#Can be selected columns and not necessarily random, e.g., minimum distance
-minimum_pick <- timestamp %>% group_by(start_location) %>% arrange(desc(-row_count)) %>% top_n(2)
-timestamp %>% group_by(start_location) %>% filter(row_count == min(row_count)) %>% filter(row_number()==1)
-
+#Can be selected columns and not necessarily random, e.g., minimum distance for all locations
+timestamp %>% group_by(start_location) %>% arrange(desc(-row_count)) %>% do(head(., n = 5)) #takes top 5
 
 #plot a few random that got caught
 caught_lat <- as.data.frame(lat[,random_pick$col])
@@ -104,45 +104,32 @@ path_data <- cbind(path_caught_lat, path_caught_lon)
 
 all_tracks <- path_data[,c(2,4,1)]
 
+#use polygon to show area of release and catch
+catch_release_box <- data.frame("area1_lon" = c(177.9639, 177.9639, 177.2627, 177.2627, 177.9639), "area1_lat" = c(-39.50853, -40.0473, -40.0473, -39.50853, -39.50853), "area2_lon" = c(176.7432, 176.7432, 176.0677, 176.0677, 176.7432), "area2_lat" = c(-36.80961, -37.34838, -37.34838, -36.80961, -36.80961), "area3_lon" = c(177.0999, 177.0999, 176.3626, 176.3626, 177.0999), "area3_lat" = c(-42.76741, -43.30618, -43.30618, -42.76741, -42.76741), "area4_lon" = c(167.2985, 167.2985, 166.4465, 166.4465, 167.2985), "area4_lat" = c(-50.48226, -51.02104, -51.02104, -50.48226, -50.48226), "area5_lon" = c(169.806, 169.806, 169.116, 169.116, 169.806), "area5_lat" = c(-38.38665, -38.92542, -38.92542, -38.38665, -38.38665))
+
+#plot paths and sites of catch and release
+#this can be combined with doing a static plot as map is not added here 
 ggplot(all_tracks, aes(x = longitude_path, y = latitude_path)) +
     geom_path(aes(group=V), color = "light blue") +
   geom_path(min_tracks, mapping = aes(x = longitude_path, y = latitude_path), color = "green") +
   geom_path(max_tracks, mapping = aes(x = longitude_path, y = latitude_path), color = "red") +
   geom_path(mean_tracks, mapping = aes(x = longitude_path, y = latitude_path), color = "orange") +
-  geom_path(trawl_box, mapping = aes(WC_lon, WC_lat))+
-  geom_polygon(trawl_box, mapping = aes(UNI_lon, UNI_lat), fill = "black")
+  geom_path(catch_release_box, mapping = aes(area1_lon, area1_lat))+ #catch
+  geom_polygon(catch_release_box, mapping = aes(area2_lon, area2_lat), fill = "black") #release
 
-trawl_box <- data.frame("LNI_lon" = c(177.9639, 177.9639, 177.2627, 177.2627, 177.9639), "LNI_lat" = c(-39.50853, -40.0473, -40.0473, -39.50853, -39.50853), "UNI_lon" = c(176.7432, 176.7432, 176.0677, 176.0677, 176.7432), "UNI_lat" = c(-36.80961, -37.34838, -37.34838, -36.80961, -36.80961), "CR_lon" = c(177.0999, 177.0999, 176.3626, 176.3626, 177.0999), "CR_lat" = c(-42.76741, -43.30618, -43.30618, -42.76741, -42.76741), "AI_lon" = c(167.2985, 167.2985, 166.4465, 166.4465, 167.2985), "AI_lat" = c(-50.48226, -51.02104, -51.02104, -50.48226, -50.48226), "WC_lon" = c(169.806, 169.806, 169.116, 169.116, 169.806), "WC_lat" = c(-38.38665, -38.92542, -38.92542, -38.38665, -38.38665))
-
-library(scales)
-
+#getting NZ data
 NZMap <- getNOAA.bathy(lon1 = 155, lon2 = 180,
                        lat1 = -30, lat2 = -55, resolution = 4)
+                       
+#plotting New Zealand map and particle tracks
 plot(NZMap, lwd = c(0.3, 1), lty = c(1, 1),
      deep = c(-1000, 0), shallow = c(-50, 0), step = c(500, 0),
      col = c("grey", "black"), drawlabels = c(FALSE, FALSE))
 
-#WC = alpha(rgb(117/255, 112/255, 179/255), 0.5)
-#AI = alpha(rgb(102/255, 166/255, 30/255), 0.5)
-#LNI = alpha(rgb(27/255, 157/255, 119/255), 0.5)
-#CR = alpha(rgb(231/255, 41/255, 137/255), 0.5)
-#UNI = alpha(rgb(218/255, 95/255, 2/255), 0.5)
+#assign specific colours for specific locations
+#area1 = alpha(rgb(117/255, 112/255, 179/255), 0.5)
+#area2 = alpha(rgb(102/255, 166/255, 30/255), 0.5)
 
-##lines(x = all_tracks$longitude_path, y = all_tracks$latitude_path, col = WC , type = "l")
-lines(x = all_tracks$longitude_path, y = all_tracks$latitude_path, col = AI , type = "l")
-lines(x = all_tracks$longitude_path, y = all_tracks$latitude_path, col = LNI , type = "l")
-lines(x = all_tracks$longitude_path, y = all_tracks$latitude_path, col = CR , type = "l")
-lines(x = all_tracks$longitude_path, y = all_tracks$latitude_path, col = UNI , type = "l")
-#lines(x = trawl_box$UNI_lon, y = trawl_box$UNI_lat, col = "black")
-#lines(x = trawl_box$LNI_lon, y = trawl_box$LNI_lat, col = "black")
-#lines(x = trawl_box$CR_lon, y = trawl_box$CR_lat, col = "black")
-lines(x = trawl_box$WC_lon, y = trawl_box$WC_lat, col = "black")
-
-lines(x = trawl_box$UNI_lon, y = trawl_box$UNI_lat, col = "black")
-lines(x = trawl_box$AI_lon, y = trawl_box$AI_lat, col = "black")
-
-
-
-
-
-
+lines(x = all_tracks$longitude_path, y = all_tracks$latitude_path, col = area1 , type = "l")
+lines(x = all_tracks$longitude_path, y = all_tracks$latitude_path, col = area2 , type = "l")
+lines(x = catch_release_box$area1_lon, y = catch_release_box$area1_lat, col = "black")
