@@ -1,9 +1,9 @@
-#In the manuscript three different types of datasets, composed from the original data, were tested.
+#In the manuscript haplotypic dataset was used, but we did test three different types of datasets prior to choosing this dataset.
 #1. Haplotype dataset - Stacks output: "populations.haps.vcf"
 #2. Random SNP dataset - in this case the first SNP on the locus was selected (Stacks output: "populations.snps.vcf"; using option: "--write-single-snp" in the populations module which restricts data analysis to only the first SNP per locus.)
 #3. MAF SNP dataset - selecting the SNP with the highest MAF per locus (Stacks output: "populations.snps.vcf")
 
-#RESULTS: The results indicated that the haplotype dataset was able to reveal the most structure, followed by the MAF SNP dataset and lastly the Random SNP dataset.
+#RESULTS: The results, based on FST, DAPC etc indicated that the haplotype dataset was able to reveal the most structure, followed by the MAF SNP dataset and lastly the Random SNP dataset.
 
 #The allele count and frequency data was generated using VCFtools using standard Stacks Population module output - "populations.snps.vcf" - which gives all SNPs.
 
