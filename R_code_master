@@ -1,6 +1,4 @@
-#Using Haplotype data and SNP data (first SNP per loci)
-#20191118
-#updated 2011202
+#This is the original master R code
 
 ####PACKAGES####
 library(readxl)
