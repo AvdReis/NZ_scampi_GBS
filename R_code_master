@@ -1,4 +1,4 @@
-#This is the original master R code
+#This is the original master R code which has been separated into a more user friendly format
 
 ####PACKAGES####
 library(readxl)
