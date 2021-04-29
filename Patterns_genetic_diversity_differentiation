@@ -111,6 +111,22 @@ dapc1 <- dapc(DAPC, DAPC$pop, n.pca = 3, n.da = 2) #CHANGE PCs and 2 DFs - PCs g
 scatter(dapc1, col = mycol, cex = 2, legend = TRUE, clabel = F, posi.leg = "topright", scree.pca = TRUE,
         posi.pca = "topleft", posi.da = "bottomleft", cleg = 0.75)
         
+#PCA#
+PCA <- write_genepop(loci_filtered_df)
+
+stacks_pop <- read.genepop(PCA, ncode = 3L, quiet = FALSE)
+
+stacks_pop_freq <- tab(stacks_pop, freq=TRUE, NA.method="mean")
+
+stacks_pop_PCA <- dudi.pca(stacks_pop_freq, center=TRUE, scale=FALSE, scannf = F, nf = 3)
+
+col_choice = brewer.pal(5, "Set1") #using Rcolorbrewer
+
+#plotting for axes x=1 and y=2. If want to see individuals s.label(stacks_pop_PCA$li)
+s.class(stacks_pop_PCA$li, fac=pop(stacks_pop), col=col_choice)
+
+add.scatter.eig(stacks_pop_PCA$eig[1:10],3,1,2, ratio=.15)
+
 #if want to get a structure-like plot using LEA#
 write_structure(loci_filtered_df, parallel.core = 1, filename = "./structure")
 
