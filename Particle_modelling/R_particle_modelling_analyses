@@ -4,6 +4,7 @@ library(tidyr)
 library(ncdf4)
 library(marmap)
 library(ggplot2)
+library(geosphere)
 
 #load raw data
 matlab <- "C:/path/to/data/particle_modelling.nc"
@@ -110,34 +111,73 @@ start_end_data <- left_join(end_data, start_data,  by = "col")
 
 table(start_end_data$start_location, start_end_data$status.y)
 
-#MEAN TIME BEFORE CAUGHT#
-#count how long on average particles took from getting released to getting caught
-#here you need to know how often the particles coords were captured
-time <- t(status)
-time <- as.data.frame(time)
-time$col <- rep(1:n)
+#=======================================================================================================================#
 
-end_data_time <- end_data[,1:2]
+#calculate the distance and time taken per particle that got caught
 
-time <- left_join(end_data_time, time)
-time$count_zero <- apply(time, 1, function(x) length(which(x==0))) #count how many zeros there are in a row
-time$count_zero <- time$count_zero+1 #plus 1 for not counting '3'
+#not really that random... if wanting to subset data
+#random_pick <- start_end_data %>% group_by(start_location) #%>% filter(start_location == "AI") #%>% sample_n(2)#filter(col == 145664)#can sample a random number or filter for a specific particle
 
-head(time$count_zero)
+caught_lat <- as.data.frame(lat[,start_end_data$col]) 
+path_caught_lat <- gather(caught_lat, key = V, "latitude_path")
+path_caught_lat <- filter(path_caught_lat, latitude_path < 0) #this is to remove erroneous data and will differ depending on location
 
-area <- start_end_data[,c(2,10)] #may need to be adjusted according to data
+caught_lon <- as.data.frame(lon[,start_end_data$col])
+path_caught_lon <- gather(caught_lon, key = V, "longitude_path")
+path_caught_lon <- filter(path_caught_lon, longitude_path < 200) #this is to remove erroneous data and will differ depending on location
 
-time_area <- time[,c(2,524)]
-time_area <- left_join(area, time_area)
-aggregate(count_zero ~ start_location, time_area, FUN = mean/max/min/median) #if there is min mean max etc in the global env the fun will not work rm(min/max) from global env
-time_area %>% filter(count_zero == n & start_location == "location_A") #obtain particle ID
+path_data <- cbind(path_caught_lat, path_caught_lon)
 
-error_std <- time_area %>% filter(start_location == "location_A")
+all_tracks <- path_data[,c(2,4,1)]
 
-#--------------------#
-std <- function(x) sd(x)/sqrt(length(x))
-se <- function(x) sqrt(var(x)/length(x))
-#--------------------#
+#add start location
+location <- start_end_data[,c("V", "start_location", "col")]
+all_tracks <- left_join(location, all_tracks)
 
-std(error_std$count_zero)
-se(error_std$count_zero)
+#mean distance
+#this takes a bit of data manipulation to get it into the correct format to calculate distance
+#essentially making a dataframe where row 1 gives coords from A to B and then row 2 give B to C
+
+gdist <- all_tracks
+gdist_1 <- gdist
+gdist_1 <-  rename(gdist_1, lat1 = latitude_path, lon1 = longitude_path)
+
+gdist_2 <- gdist[-1,] #omit first row according to df length this ensures that when binding dist 1 and 2 that A goes to B and not back to A
+gdist_2 <- gdist_2 %>% group_by(V) %>% mutate(id = row_number())
+gdist_2$V2 <- paste(gdist_2$V, gdist_2$id, sep = ".") #checking that last rows of very group by are deleted
+dup_last_row <- gdist_2[nrow(gdist_2),] #to make sure df are same length
+gdist_2 <- rbind(gdist_2, dup_last_row)
+gdist_2 <-  rename(gdist_2, lat2 = latitude_path, lon2 = longitude_path)
+gdist_2 <- gdist_2[,c("lat2", "lon2", "V2")]
+
+tot_dist <- cbind(gdist_1, gdist_2)
+
+#remove last row as intended 
+tot_dist <- tot_dist %>%
+  group_by(V) %>%
+  slice(-n())
+
+#tot_dist[grepl("V1$|V2$", tot_dist$V), ] %>% View
+
+#calculate distance between time periods
+tot_dist$dist <- distHaversine(tot_dist[,c("lon1", "lat1")], tot_dist[,c("lon2", "lat2")])
+
+#calculate weeks
+tot_dist$time <- rep(1)
+sum_tot <- aggregate(cbind(time, dist)~V+start_location+col, tot_dist, sum)
+sum_tot$time <- sum_tot$time+1 #need to add a week as A to B is week 2 and not 1
+#sum_tot$time <- as.character(sum_tot$time)
+ggplot(sum_tot)+
+  geom_point(aes(x = dist, y = time, colour = start_location))+
+  facet_wrap(~start_location)
+
+#minimum
+sum_tot %>% group_by(start_location) %>% arrange(desc(-dist)) %>% filter(row_number()==1) #gives particle ID
+#maximum
+sum_tot %>% group_by(start_location) %>% arrange(desc(dist)) %>% filter(row_number()==1) #gives particle ID
+
+#distance summary
+sum_distance <- sum_tot %>% group_by(start_location) %>% summarise(mean = mean(dist), median = median(dist), max = max(dist), min = min(dist))
+
+#time summary
+sum_time <- sum_tot %>% group_by(start_location) %>% summarise(mean = mean(time), median = median(time), max = max(time), min = min(time))
