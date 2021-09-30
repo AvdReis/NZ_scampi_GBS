@@ -1,0 +1,48 @@
+#how to calculate the least cost distance by sea
+####PACKAGES####
+library(marmap)
+library(tidyr)
+library(ggmap)
+library(ggplot2)
+library(readxl)
+library(fossil)
+
+#------------------------------------------------------------------------------------------#
+#---COORDINATES FOR LEAST COST PATH---#
+#Look at central coordinates given in Table S1
+scampi_mid_point <- c()
+scampi_mid_point$SCI <- c("SCI1", "SCI2", "SCI3", "SCI6", "SCI7") 
+scampi_mid_point$x <- c(176.4054573, 177.6133158, 176.731248, 166.87249, 169.4610083)
+scampi_mid_point$y <- c(-37.07899825, -39.777914, -43.03679165, -50.75165, -38.65603611)
+scampi_mid_point <- as.data.frame(scampi_mid_point)
+rownames(scampi_mid_point) <- scampi_mid_point$SCI
+scampi_mid_point <- scampi_mid_point[,2:3]
+
+#---GET MAP DATA---#
+NZMap <- getNOAA.bathy(lon1 = 163, lon2 = 180,
+                       lat1 = -33, lat2 = -52, resolution = 4)
+
+#trans1 <- trans.mat(NZMap)
+trans2 <- trans.mat(NZMap, min.depth = -50) #this ensured the path needed to have aminimum depth of 50m - if not put in place like 'trans1' then path cuts across land
+
+#out1 <- lc.dist(trans1, scampi_mid_point, res = "path")
+out2 <- lc.dist(trans2, scampi_mid_point, res = "path")
+
+#---LEAST COST MAP---#
+plot(NZMap, xlim = c(163, 180), ylim = c(-52, -33),
+     deep = c(-5000, -200, 0), shallow = c(-200, 0, 0),
+     col = c("grey", "blue", "black"), step = c(1000, 200, 1),
+     lty = c(1, 1, 1), lwd = c(0.6, 0.6, 1.2),
+     draw = c(FALSE, FALSE, FALSE))
+points(scampi_mid_point, pch = 21, col = "blue", bg = col2alpha("blue", .9),
+       cex = 1.2)
+text(scampi_mid_point[,1], scampi_mid_point[,2], lab = rownames(scampi_mid_point),
+     pos = c(3, 4, 1, 2), col = "blue")
+#lapply(out1, lines, col = "orange", lwd = 2, lty = 1) -> dummy
+lapply(out2, lines, col = "orange", lwd = 2, lty = 1) -> dummy
+
+#---LEAST COST DISTANCE IN KM---#
+dist2 <- lc.dist(trans2, scampi_mid_point, res = "dist")
+
+#---DISTANCE AS THE CROW FLIES---#
+dist0 <- round(earth.dist(scampi_mid_point), 0)
