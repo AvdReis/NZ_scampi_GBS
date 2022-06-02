@@ -6,6 +6,8 @@ library(marmap)
 
 #PLOT A STATIC MAP#
 
+#use 'e' df from particle modelling gif
+
 #great tutorial on plotting with R - https://hansenjohnson.org/post/bathymetric-maps-in-r/
 
 #could always add bathymetry
