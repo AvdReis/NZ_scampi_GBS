@@ -22,7 +22,7 @@ reg = subset(reg, region %in% c('New Zealand'))
 
 # set map limits
 #Using map_data can extend past 180 and would just need to convert coords in df e to suit
-#see d$x.1 <- if_else(d$y < 0, 179, d$y) above
+#see d$x.1 <- if_else(d$y < 0, 179, d$y) in animate particles
 lons = c(155, 180)
 lats = c(-30, -55)
 
