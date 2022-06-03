@@ -1,0 +1,54 @@
+#Carrying on from R_particle_modelling_analyses
+
+#selectng random columns - i.e., how many particles must be plotted 'size'?
+set.seed(15896)
+m1 <- as.data.frame(m1)
+rnc_random <- sample(ncol(m1),size=10000,replace=FALSE)
+
+#selecting the corresponding particles and their latitudes
+caught_lat <- as.data.frame(lat)
+caught_lat <- caught_lat[, rnc_random]
+path_caught_lat <- gather(caught_lat, key = V, "latitude_path")
+path_caught_lat <- filter(path_caught_lat, latitude_path < 0)
+
+#selecting the corresponding particles and their longitudes
+caught_lon <- as.data.frame(lon)
+caught_lon <- caught_lon[, rnc_random]
+path_caught_lon <- gather(caught_lon, key = V, "longitude_path")
+path_caught_lon <- filter(path_caught_lon, longitude_path < 200)
+
+#putting the data together
+path_data <- cbind(path_caught_lat, path_caught_lon)
+
+#selecting necessarily colummns and ordering them
+all_tracks <- path_data[,c(2,4,1)]
+
+#converting negative values for plotting
+all_tracks$longitude_path <- if_else(all_tracks$longitude_path < 0, 360 + (all_tracks$longitude_path), all_tracks$longitude_path)
+
+#getting the metadata - i.e., where did the particles get released from
+rnc_random <- as.data.frame(rnc_random)
+rnc_random <- rename(rnc_random, col = rnc_random)
+
+metadata <- left_join(rnc_random, start_data[,c("col", "start_location", "lat_s", "lon_s")])
+metadata$V <- paste("V", metadata$col, sep = "")
+
+#joining the metadata to selected particle data
+all_tracks <- left_join(all_tracks, metadata)
+all_tracks <- all_tracks %>% group_by(V) %>% mutate(time = rep(1:length(V)))
+
+#creating a map
+#need library("rnaturalearth") to get 'world'
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+ggplot() +
+  geom_sf(data = world) +
+  coord_sf(xlim = c(161, 180), ylim = c(-52, -31), expand = FALSE)+
+  geom_point(data = all_tracks, 
+             aes(y = latitude_path, x = longitude_path), size = 1, shape = 16, alpha = 0.01, color = "red")+
+  #scale_color_gradient2(low = "green", mid = "yellow", high = "red")+
+  facet_grid(~start_location)+
+  theme(axis.text.x = element_text(size = 11, color = "black"), strip.background = element_rect(fill = c("White")), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), strip.text.y = element_text(
+          size = 11, color = "black", face = "bold"), axis.text.y = element_text(size = 11, color = "black"), legend.position = "none")
+ 
