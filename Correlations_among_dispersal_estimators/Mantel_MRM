@@ -1,3 +1,5 @@
+#Please note that the mantel and mrm were not included in the manuscript due to the size of the difference between 95% confidence interval. However, this could may still be beneficial to some.
+
 ####PACKAGES####
 library(ecodist)
 library(readxl)
@@ -36,3 +38,27 @@ CF_dist_out2 <- MRM(div_Mi1~CF_dist, nperm = 10000)
 MRM_out2 <- rbind(PC_dist1_out2$r.squared, lc_dist_out2$r.squared, CF_dist_out2$r.squared)
 MRM_out2 <- as.data.frame(MRM_out2)
 MRM_out2$p_adj_fdr <- p.adjust(MRM_out2$pval, method = "fdr")
+
+#---TESTING CORRELATIONS TO GET CONFIDENCE INTERVALS---#
+
+#get the matrix into typical df form
+#from https://stackoverflow.com/questions/23474729/convert-object-of-class-dist-into-data-frame-in-r
+myFun <- function(inDist) {
+  if (class(inDist) != "dist") stop("wrong input type")
+  A <- attr(inDist, "Size")
+  B <- if (is.null(attr(inDist, "Labels"))) sequence(A) else attr(inDist, "Labels")
+  if (isTRUE(attr(inDist, "Diag"))) attr(inDist, "Diag") <- FALSE
+  if (isTRUE(attr(inDist, "Upper"))) attr(inDist, "Upper") <- FALSE
+  data.frame(
+    row = B[unlist(lapply(sequence(A)[-1], function(x) x:A))],
+    col = rep(B[-length(B)], (length(B)-1):1),
+    value = as.vector(inDist))
+}
+
+#e.g., for mantel test one would need to do
+df_corr <- left_join(myFun(PC_dist1) %>% mutate(location = paste(row, col, sep = "_")) %>% rename(., PC = value) %>% dplyr::select(location, PC), myFun(lc_dist) %>% mutate(location = paste(row, col, sep = "_")) %>% rename(., lc_dist = value) %>% dplyr::select(location, lc_dist))
+df_corr <- left_join(df_corr, myFun(CF_dist) %>% mutate(location = paste(row, col, sep = "_")) %>% rename(., CF_dist = value) %>% dplyr::select(location, CF_dist))
+df_corr <- left_join(df_corr, myFun(G_dist) %>% mutate(location = paste(row, col, sep = "_")) %>% rename(., G_dist = value) %>% dplyr::select(location, G_dist))
+
+cor.test(df_corr$G_dist, df_corr$PC,
+         method = "pearson")
