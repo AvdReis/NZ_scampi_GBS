@@ -3,17 +3,14 @@
 #selectng random columns - i.e., how many particles must be plotted 'size'?
 set.seed(15896)
 m1 <- as.data.frame(m1)
-rnc_random <- sample(ncol(m1),size=10000,replace=FALSE)
 
 #selecting the corresponding particles and their latitudes
 caught_lat <- as.data.frame(lat)
-caught_lat <- caught_lat[, rnc_random]
 path_caught_lat <- gather(caught_lat, key = V, "latitude_path")
 path_caught_lat <- filter(path_caught_lat, latitude_path < 0)
 
 #selecting the corresponding particles and their longitudes
 caught_lon <- as.data.frame(lon)
-caught_lon <- caught_lon[, rnc_random]
 path_caught_lon <- gather(caught_lon, key = V, "longitude_path")
 path_caught_lon <- filter(path_caught_lon, longitude_path < 200)
 
@@ -26,16 +23,26 @@ all_tracks <- path_data[,c(2,4,1)]
 #converting negative values for plotting
 all_tracks$longitude_path <- if_else(all_tracks$longitude_path < 0, 360 + (all_tracks$longitude_path), all_tracks$longitude_path)
 
-#getting the metadata - i.e., where did the particles get released from
-rnc_random <- as.data.frame(rnc_random)
-rnc_random <- rename(rnc_random, col = rnc_random)
+#using start data - object previously made - to be able to match to all_tracks
+start_data$V <- paste("V", start_data$col, sep = "")
+all_tracks <- left_join(all_tracks, start_data[,c("col", "start_location", "lat_s", "lon_s", "row", "V")])
 
-metadata <- left_join(rnc_random, start_data[,c("col", "start_location", "lat_s", "lon_s")])
-metadata$V <- paste("V", metadata$col, sep = "")
-
-#joining the metadata to selected particle data
-all_tracks <- left_join(all_tracks, metadata)
+#calculate time - each record is 7 days/1 weeks
 all_tracks <- all_tracks %>% group_by(V) %>% mutate(time = rep(1:length(V)))
+
+#based on the length split into seasons - row is when the particle was released duering the course of the year
+length(unique(all_tracks$row))
+all_tracks$Season <- if_else(all_tracks$row <=9, "Summer", if_else(all_tracks$row <= 22, "Autumn", if_else(all_tracks$row <= 37, "Winter", if_else(all_tracks$row <= 50, "Spring", "Summer"))))
+
+#Filter for the number of weeks interested in
+all_tracks <- all_tracks %>% filter(., time <= 2)
+
+#selecting a random number of particles from each season
+rndm_season_select <- all_tracks[,c("Season", "col")] %>% unique() %>% group_by(Season) %>% slice_sample(n = 1000)
+
+all_tracks <- filter(all_tracks, col %in% rndm_season_select$col)
+
+all_tracks <- filter(all_tracks, start_location == "AI" | start_location == "CR" | start_location == "LNI" | start_location == "UNI" | start_location == "WC")
 
 #creating a map
 #need library("rnaturalearth") to get 'world'
@@ -45,10 +52,12 @@ ggplot() +
   geom_sf(data = world) +
   coord_sf(xlim = c(161, 180), ylim = c(-52, -31), expand = FALSE)+
   geom_point(data = all_tracks, 
-             aes(y = latitude_path, x = longitude_path), size = 1, shape = 16, alpha = 0.01, color = "red")+
+             aes(y = latitude_path, x = longitude_path, color = factor(time)), size = 1, shape = 16, alpha = 0.01)+ #, color = "red"
   #scale_color_gradient2(low = "green", mid = "yellow", high = "red")+
-  facet_grid(~start_location)+
+  facet_grid(time~start_location)+ #factor(Season, levels = c("Summer", "Autumn", "Winter", "Spring"))
   theme(axis.text.x = element_text(size = 11, color = "black"), strip.background = element_rect(fill = c("White")), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
         panel.background = element_blank(), strip.text.y = element_text(
-          size = 11, color = "black", face = "bold"), axis.text.y = element_text(size = 11, color = "black"), legend.position = "none")
- 
+          size = 11, color = "black", face = "bold"), axis.text.y = element_text(size = 11, color = "black"), legend.position = "none") + #, legend.position = "none"
+  guides(colour = guide_legend(override.aes = list(alpha = 1)))+
+  #geom_polygon(data = trawl_box, aes(x = AI_lon, y = AI_lat))
+  geom_point(data = center_box, aes(x = lon, y = lat))
