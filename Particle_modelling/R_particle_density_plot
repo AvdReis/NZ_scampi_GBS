@@ -1,6 +1,5 @@
 #Carrying on from R_particle_modelling_analyses
 
-#selectng random columns - i.e., how many particles must be plotted 'size'?
 set.seed(15896)
 m1 <- as.data.frame(m1)
 
